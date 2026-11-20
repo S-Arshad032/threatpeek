@@ -5,3 +5,5 @@ build/
 .env.*
 *.log
 !.env.example
+
+.claude/
