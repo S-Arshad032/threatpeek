@@ -41,6 +41,12 @@ describe("detectContent: credential-request", () => {
     expect(ids("Your PIN please")).toEqual(["credential-request"]);
     expect(ids("আপনার ওটিপি দিন")).toEqual(["credential-request"]);
   });
+  it("does not fire on a credential word that is part of a hostname", () => {
+    expect(ids("https://login.galactibank.example")).toEqual([]);
+    expect(ids("see galactibank-login.example")).toEqual([]);
+    expect(ids("Please login.")).toEqual(["credential-request"]);
+    expect(ids("go to https://galactibank.example/login now")).toEqual(["credential-request"]);
+  });
   it("does not fire on the ordinary word pin", () => {
     expect(ids("please pin this post")).toEqual([]);
   });

@@ -48,8 +48,9 @@ const URGENCY_EN_RE = new RegExp(`\\b(?:${URGENCY_EN_PHRASES.map(phrasePattern).
 // No \b: word boundaries do not work for Bangla script.
 const URGENCY_BN_RE = new RegExp(`(?:${URGENCY_BN_PHRASES.map(bnPhrasePattern).join("|")})`, "gu");
 
+// The lookarounds skip words that are part of a hostname, e.g. "login" in "login.galactibank.example".
 const CREDENTIAL_EN_RE =
-  /\b(?:password|passcode|log\s*in|sign\s+in|username|one[- ]time\s+(?:code|password)|verify\s+your\s+(?:account|identity)|confirm\s+your\s+identity)\b/gi;
+  /(?<![.-])\b(?:password|passcode|log\s*in|sign\s+in|username|one[- ]time\s+(?:code|password)|verify\s+your\s+(?:account|identity)|confirm\s+your\s+identity)\b(?![.-][a-z0-9])/gi;
 // Case-sensitive so the ordinary word "pin" never fires.
 const CREDENTIAL_UPPER_RE = /\b(?:PIN|OTP)\b/g;
 const CREDENTIAL_BN_RE = new RegExp(`(?:${CREDENTIAL_BN_TERMS.map(bnPhrasePattern).join("|")})`, "gu");

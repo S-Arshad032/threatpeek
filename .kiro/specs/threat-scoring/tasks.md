@@ -213,7 +213,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - Run `vitest --run` from `packages/engine/` and confirm zero failures before proceeding to integration tests
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 13. `packages/engine/test/golden.test.js`
+- [x] 13. `packages/engine/test/golden.test.js`
   - Implement all 10 golden test cases from the design Testing Strategy table; each asserts exact verdict, exact riskScore, exact set of flag ids, `cursedPhrases` non-empty iff a content signal fired, expected `confidence`
     1. `"Hi, lunch at 1pm tomorrow? Let me know."` → `pookie`, riskScore 0, no flags
     2. `"Check your balance at http://bad.xyz/portal and enter your password."` → `skeptical`, riskScore 35, flags `{risky-tld, credential-request}`
