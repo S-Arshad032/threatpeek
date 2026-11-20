@@ -15,7 +15,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - No source files yet — just the project shell
   - _Requirements: 12.1_
 
-- [ ] 1. `packages/engine/src/config.js`
+- [x] 1. `packages/engine/src/config.js`
   - Export all named numeric and word-list constants; no imports from within the package
   - Signal weights: `W_TYPOSQUATTING=35`, `W_HOMOGRAPH_PUNYCODE=35`, `W_RAW_IP_URL=35`, `W_RISKY_TLD=15`, `W_DISPLAY_NAME_MISMATCH=25`, `W_LINK_TEXT_MISMATCH=35`, `W_URGENCY_EN=15`, `W_URGENCY_BN=15`, `W_CREDENTIAL_REQUEST=20`, `W_SUSPICIOUS_ATTACHMENT=20`, `W_SPF_FAIL=20`, `W_DKIM_FAIL=20`, `W_DMARC_FAIL=15`
   - Category caps: `CAP_IDENTITY_AUTH=40`, `CAP_LINK=35`, `CAP_CONTENT=45`
