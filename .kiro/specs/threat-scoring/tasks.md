@@ -34,7 +34,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - No other module may use an inline literal for any of these values
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 2.14, 2.15, 4.1–4.10, 5.2–5.4, 6.1–6.2, 12.1_
 
-- [ ] 2. `packages/engine/src/brands.js`
+- [x] 2. `packages/engine/src/brands.js`
   - Export `DEFAULT_BRANDS` as a `BrandEntry[]` with only fictional brands and reserved TLDs: galactibank / galactibank.example, orbitins / orbitins.test, nexamail / nexamail.example, vaultpay / vaultpay.example, trustledger / trustledger.test
   - Brand names are lowercase, a–z0–9 only; no imports from the package
   - _Requirements: 9.1, 9.2, 9.3_
