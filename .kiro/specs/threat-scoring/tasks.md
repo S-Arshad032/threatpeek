@@ -55,8 +55,8 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - Imports only `config.js`
   - _Requirements: 2.3, 2.4, 2.5, 2.7, 2.8_
 
-- [ ] 5. Identity detector
-  - [ ] 5.1 Implement `packages/engine/src/detectors/identity.js`
+- [x] 5. Identity detector
+  - [x] 5.1 Implement `packages/engine/src/detectors/identity.js`
     - Implement `detectIdentity(input, brands)` returning `{ flags: RedFlag[], cursedPhrases: [] }`
     - Three signals: `typosquatting` (W_TYPOSQUATTING=35), `homograph-punycode` (W_HOMOGRAPH_PUNYCODE=35), `display-name-mismatch` (W_DISPLAY_NAME_MISMATCH=25)
     - One `RedFlag` per signal per message; evidence is the first match
@@ -67,7 +67,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Imports: `config.js`, `brands.js`, `util/hostname.js`, `util/levenshtein.js`
     - _Requirements: 2.2, 2.3, 2.4, 2.7, 7.1, 7.2, 7.3, 9.1_
 
-  - [ ]* 5.2 Unit tests for `identity.js`
+  - [x]* 5.2 Unit tests for `identity.js`
     - "https://galact1bank.example/login" → `typosquatting` fires
     - "http://galactibank.xyz" → `typosquatting` fires (exact label, wrong domain)
     - "https://galactibank-verify.example" → `typosquatting` fires (brand inside label)
