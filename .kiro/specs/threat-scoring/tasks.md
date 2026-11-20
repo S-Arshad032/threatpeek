@@ -39,7 +39,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - Brand names are lowercase, a–z0–9 only; no imports from the package
   - _Requirements: 9.1, 9.2, 9.3_
 
-- [ ] 3. `packages/engine/src/util/levenshtein.js`
+- [x] 3. `packages/engine/src/util/levenshtein.js`
   - Export `levenshtein(a, b)` — standard iterative Wagner-Fischer edit distance
   - Returns the exact edit distance for strings of any length; accepts empty strings (distance equals the length of the other string)
   - Imports only `config.js`
