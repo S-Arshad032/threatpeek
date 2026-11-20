@@ -49,6 +49,17 @@ describe("LRUCache", () => {
     expect(c.get("a")).toBe(2);
   });
 
+  it("accepts a shorter per-entry TTL but never a longer one", () => {
+    let t = 0;
+    const c = new LRUCache({ max: 5, ttlMs: 100, now: () => t });
+    c.set("short", 1, 10);
+    c.set("long", 2, 1000);
+    t = 10;
+    expect(c.get("short")).toBeUndefined();
+    t = 100;
+    expect(c.get("long")).toBeUndefined();
+  });
+
   it("rejects bad options", () => {
     expect(() => new LRUCache({ max: 0, ttlMs: 1 })).toThrow(RangeError);
     expect(() => new LRUCache({ max: 1, ttlMs: 0 })).toThrow(RangeError);

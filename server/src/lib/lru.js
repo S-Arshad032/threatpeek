@@ -33,9 +33,11 @@ export class LRUCache {
     return entry.value;
   }
 
-  set(key, value) {
+  /** @param {number} [ttlMs] optional shorter TTL for this entry (capped at the cache TTL) */
+  set(key, value, ttlMs = this.ttlMs) {
+    const ttl = Math.min(this.ttlMs, ttlMs > 0 ? ttlMs : this.ttlMs);
     if (this.map.has(key)) this.map.delete(key);
-    this.map.set(key, { value, expiresAt: this.now() + this.ttlMs });
+    this.map.set(key, { value, expiresAt: this.now() + ttl });
     while (this.map.size > this.max) {
       this.map.delete(this.map.keys().next().value);
     }
