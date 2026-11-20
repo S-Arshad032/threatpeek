@@ -148,8 +148,8 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Every emitted `RedFlag` has a non-empty `explanation`
     - _Requirements: 2.13, 2.14, 2.15, 7.1_
 
-- [ ] 9. Blend function
-  - [ ] 9.1 Implement `packages/engine/src/blend.js`
+- [x] 9. Blend function
+  - [x] 9.1 Implement `packages/engine/src/blend.js`
     - Implement `blend(l1Score, l2Hit, l3Score, flags)` → integer 0–100; accept flags as `Array<string>` or `Set<string>`; normalize with `new Set(flags)`
     - Rule 4.1: `l2Hit` → `risk = max(BLEND_L2_FLOOR, l1Score)`
     - Rule 4.2: `l3Score !== null` → `risk = BLEND_L1_WEIGHT * l1Score + BLEND_L3_WEIGHT * l3Score`
@@ -165,7 +165,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Imports: `config.js` only
     - _Requirements: 4.1–4.10_
 
-  - [ ]* 9.2 Unit tests for `blend.js`
+  - [x]* 9.2 Unit tests for `blend.js`
     - Each of rules 4.1–4.10 tested independently
     - Each hard floor (4.5–4.9) tested independently
     - Array and Set with same flags → same result
