@@ -80,8 +80,8 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Every emitted `RedFlag` has a non-empty `explanation`
     - _Requirements: 2.3, 2.4, 2.7, 7.1, 7.2, 7.3_
 
-- [ ] 6. Link detector
-  - [ ] 6.1 Implement `packages/engine/src/detectors/link.js`
+- [x] 6. Link detector
+  - [x] 6.1 Implement `packages/engine/src/detectors/link.js`
     - Implement `detectLinks(input)` returning `{ flags: RedFlag[], cursedPhrases: [] }`
     - Three signals: `raw-ip-url` (W_RAW_IP_URL=35), `risky-tld` (W_RISKY_TLD=15), `link-text-mismatch` (W_LINK_TEXT_MISMATCH=35)
     - One `RedFlag` per signal; evidence is the first match; explanations from design table
@@ -91,7 +91,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Imports: `config.js`, `util/hostname.js`
     - _Requirements: 2.5, 2.6, 2.8, 7.1, 7.2, 7.3_
 
-  - [ ]* 6.2 Unit tests for `link.js`
+  - [x]* 6.2 Unit tests for `link.js`
     - "http://203.0.113.5 click here" → `raw-ip-url` fires
     - "http://1.2.3.4.evil.example" → no `raw-ip-url`
     - "http://999.1.1.1/" → no `raw-ip-url` (invalid octet)
