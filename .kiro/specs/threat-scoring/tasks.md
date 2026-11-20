@@ -45,7 +45,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - Imports only `config.js`
   - _Requirements: 2.3, 2.4_
 
-- [ ] 4. `packages/engine/src/util/hostname.js`
+- [x] 4. `packages/engine/src/util/hostname.js`
   - Export `extractAsciiHostnames(text)` using the ASCII extractor regex from the design; apply with `matchAll`, lowercase, de-duplicate, cap at `MAX_HOSTNAMES_SCANNED`
   - Export `extractUnicodeHostnames(text)` using the Unicode extractor regex from the design; same post-processing
   - Regex objects with the `g` flag must never be shared mutable state; create inside the function or use `matchAll`
