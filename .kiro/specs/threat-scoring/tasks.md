@@ -103,8 +103,8 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Every emitted `RedFlag` has a non-empty `explanation`
     - _Requirements: 2.5, 2.6, 2.8, 7.1_
 
-- [ ] 7. Content detector
-  - [ ] 7.1 Implement `packages/engine/src/detectors/content.js`
+- [x] 7. Content detector
+  - [x] 7.1 Implement `packages/engine/src/detectors/content.js`
     - Implement `detectContent(input)` returning `{ flags: RedFlag[], cursedPhrases: CursedPhrase[] }`
     - Four signals: `urgency-en` (15), `urgency-bn` (15), `credential-request` (20), `suspicious-attachment` (20)
     - One `RedFlag` per signal; evidence is the first match; explanations from design table
@@ -116,7 +116,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Imports: `config.js` only
     - _Requirements: 2.9, 2.10, 2.11, 2.12, 3.1, 3.2, 3.3, 3.4, 7.1, 7.2, 7.3_
 
-  - [ ]* 7.2 Unit tests for `content.js`
+  - [x]* 7.2 Unit tests for `content.js`
     - Input with 3 distinct urgency-en phrases → one `urgency-en` `RedFlag` + 3 `CursedPhrase` entries
     - "please pin this post" → no `credential-request`
     - "I work with Node.js daily" → no `suspicious-attachment`
