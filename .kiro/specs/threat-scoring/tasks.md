@@ -8,7 +8,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
 
 ## Tasks
 
-- [ ] 0. Project scaffolding
+- [x] 0. Project scaffolding
   - Create directory tree: `packages/engine/src/`, `packages/engine/src/util/`, `packages/engine/src/detectors/`, `packages/engine/test/`
   - Create `packages/engine/package.json` with `"type": "module"`, `vitest` and `fast-check` as devDependencies, and a `test` script that runs `vitest --run`
   - Create `packages/engine/vitest.config.js` configured for ESM (set `environment` to `node`, no transform needed for plain JS ES modules)
