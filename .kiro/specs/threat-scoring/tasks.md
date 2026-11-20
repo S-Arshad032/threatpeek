@@ -127,8 +127,8 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Every `CursedPhrase` has a non-empty `reason`
     - _Requirements: 2.9, 2.10, 2.11, 2.12, 3.2, 3.3, 7.1_
 
-- [ ] 8. Auth-headers detector
-  - [ ] 8.1 Implement `packages/engine/src/detectors/auth-headers.js`
+- [x] 8. Auth-headers detector
+  - [x] 8.1 Implement `packages/engine/src/detectors/auth-headers.js`
     - Implement `detectAuthHeaders(input)` returning `{ flags: RedFlag[], cursedPhrases: [] }`
     - Three signals: `spf-fail` (W_SPF_FAIL=20), `dkim-fail` (W_DKIM_FAIL=20), `dmarc-fail` (W_DMARC_FAIL=15)
     - One `RedFlag` per signal; evidence is the matched fragment (e.g. `"dkim=fail"`); explanations from design table
@@ -139,7 +139,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Imports: `config.js` only
     - _Requirements: 2.13, 2.14, 2.15, 7.1, 7.2, 7.3_
 
-  - [ ]* 8.2 Unit tests for `auth-headers.js`
+  - [x]* 8.2 Unit tests for `auth-headers.js`
     - `Authentication-Results` with `spf=fail` → `spf-fail` fires
     - `Authentication-Results` with `dkim=fail` on a folded second line → `dkim-fail` fires
     - `DKIM-Signature` header alone → no flags
