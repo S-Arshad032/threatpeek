@@ -16,21 +16,21 @@ Node 20 or newer. From the repository root:
 
 ```sh
 npm install
-cp server/.env.example server/.env   # then fill in what you need
-npm run dev  -w server               # restarts on file changes
-npm start    -w server               # plain start
-npm test     -w server               # vitest, no network needed
+cp backend/server/.env.example backend/server/.env   # then fill in what you need
+npm run dev  -w @threatpeek/server            # restarts on file changes
+npm start    -w @threatpeek/server            # plain start
+npm test     -w @threatpeek/server            # vitest, no network needed
 ```
 
-You can also run `npm run dev` or `npm test` inside `server/`.
+You can also run `npm run dev` or `npm test` inside `backend/server/`.
 
 On Windows, run the tests from a path with an uppercase drive letter (`D:\...`). If Git Bash starts in `/d/...`, vitest loads twice and every suite fails.
 
-With `NODE_ENV=production`, the server also serves `client/dist` and falls back to `index.html`, so one service hosts the whole app.
+With `NODE_ENV=production`, the server also serves `frontend/dist` and falls back to `index.html`, so one service hosts the whole app.
 
 ## Environment variables
 
-The server reads them from `server/.env` or the process environment. Empty or invalid values use the safe default.
+The server reads them from `backend/server/.env` or the process environment. Empty or invalid values use the safe default.
 
 | Name | Default | Meaning |
 |---|---|---|
@@ -41,7 +41,7 @@ The server reads them from `server/.env` or the process environment. Empty or in
 | `OPENROUTER_API_KEY` | (none) | One OpenRouter key. The server never rotates keys or uses several accounts. |
 | `OPENROUTER_MODEL` | (none) | OpenRouter model id you choose, for example a `:free` model. |
 | `AI_DAILY_LIMIT` | `40` | Maximum OpenRouter calls per UTC day. The default stays under the free tier's 50. |
-| `NODE_ENV` | `development` | `production` turns on static hosting of `client/dist`. |
+| `NODE_ENV` | `development` | `production` turns on static hosting of `frontend/dist`. |
 
 The server never logs keys or pasted text. It logs only upstream status codes.
 

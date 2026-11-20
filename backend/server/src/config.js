@@ -1,6 +1,6 @@
 // All server constants in one place. No side effects.
 
-// Same value as MAX_INPUT_LENGTH in packages/engine/src/config.js (the engine's index does not export it).
+// Same value as MAX_INPUT_LENGTH in backend/engine/src/config.js (the engine's index does not export it).
 export const MAX_INPUT_LENGTH = 4000;
 
 export const BODY_LIMIT = "16kb";

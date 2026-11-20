@@ -2,20 +2,20 @@
 
 ## Overview
 
-Build the `packages/engine` ES-module library in plain JavaScript. The library analyses a text message and returns a structured risk assessment via a pure, deterministic `score()` function. Implementation follows the layered architecture from the design: configuration constants, brand data, utility helpers, four detector modules, a blending function, verdict mapping, and the top-level orchestrator — then golden tests and property tests.
+Build the `backend/engine` ES-module library in plain JavaScript. The library analyses a text message and returns a structured risk assessment via a pure, deterministic `score()` function. Implementation follows the layered architecture from the design: configuration constants, brand data, utility helpers, four detector modules, a blending function, verdict mapping, and the top-level orchestrator — then golden tests and property tests.
 
 Each task creates or modifies exactly one source file or one test file. No task merges multiple source files. Order follows the dependency graph: constants first, then utilities, then detectors, then composition, then tests.
 
 ## Tasks
 
 - [x] 0. Project scaffolding
-  - Create directory tree: `packages/engine/src/`, `packages/engine/src/util/`, `packages/engine/src/detectors/`, `packages/engine/test/`
-  - Create `packages/engine/package.json` with `"type": "module"`, `vitest` and `fast-check` as devDependencies, and a `test` script that runs `vitest --run`
-  - Create `packages/engine/vitest.config.js` configured for ESM (set `environment` to `node`, no transform needed for plain JS ES modules)
+  - Create directory tree: `backend/engine/src/`, `backend/engine/src/util/`, `backend/engine/src/detectors/`, `backend/engine/test/`
+  - Create `backend/engine/package.json` with `"type": "module"`, `vitest` and `fast-check` as devDependencies, and a `test` script that runs `vitest --run`
+  - Create `backend/engine/vitest.config.js` configured for ESM (set `environment` to `node`, no transform needed for plain JS ES modules)
   - No source files yet — just the project shell
   - _Requirements: 12.1_
 
-- [x] 1. `packages/engine/src/config.js`
+- [x] 1. `backend/engine/src/config.js`
   - Export all named numeric and word-list constants; no imports from within the package
   - Signal weights: `W_TYPOSQUATTING=35`, `W_HOMOGRAPH_PUNYCODE=35`, `W_RAW_IP_URL=35`, `W_RISKY_TLD=15`, `W_DISPLAY_NAME_MISMATCH=25`, `W_LINK_TEXT_MISMATCH=35`, `W_URGENCY_EN=15`, `W_URGENCY_BN=15`, `W_CREDENTIAL_REQUEST=20`, `W_SUSPICIOUS_ATTACHMENT=20`, `W_SPF_FAIL=20`, `W_DKIM_FAIL=20`, `W_DMARC_FAIL=15`
   - Category caps: `CAP_IDENTITY_AUTH=40`, `CAP_LINK=35`, `CAP_CONTENT=45`
@@ -34,18 +34,18 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - No other module may use an inline literal for any of these values
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 2.14, 2.15, 4.1–4.10, 5.2–5.4, 6.1–6.2, 12.1_
 
-- [x] 2. `packages/engine/src/brands.js`
+- [x] 2. `backend/engine/src/brands.js`
   - Export `DEFAULT_BRANDS` as a `BrandEntry[]` with only fictional brands and reserved TLDs: galactibank / galactibank.example, orbitins / orbitins.test, nexamail / nexamail.example, vaultpay / vaultpay.example, trustledger / trustledger.test
   - Brand names are lowercase, a–z0–9 only; no imports from the package
   - _Requirements: 9.1, 9.2, 9.3_
 
-- [x] 3. `packages/engine/src/util/levenshtein.js`
+- [x] 3. `backend/engine/src/util/levenshtein.js`
   - Export `levenshtein(a, b)` — standard iterative Wagner-Fischer edit distance
   - Returns the exact edit distance for strings of any length; accepts empty strings (distance equals the length of the other string)
   - Imports only `config.js`
   - _Requirements: 2.3, 2.4_
 
-- [x] 4. `packages/engine/src/util/hostname.js`
+- [x] 4. `backend/engine/src/util/hostname.js`
   - Export `extractAsciiHostnames(text)` using the ASCII extractor regex from the design; apply with `matchAll`, lowercase, de-duplicate, cap at `MAX_HOSTNAMES_SCANNED`
   - Export `extractUnicodeHostnames(text)` using the Unicode extractor regex from the design; same post-processing
   - Regex objects with the `g` flag must never be shared mutable state; create inside the function or use `matchAll`
@@ -56,7 +56,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - _Requirements: 2.3, 2.4, 2.5, 2.7, 2.8_
 
 - [x] 5. Identity detector
-  - [x] 5.1 Implement `packages/engine/src/detectors/identity.js`
+  - [x] 5.1 Implement `backend/engine/src/detectors/identity.js`
     - Implement `detectIdentity(input, brands)` returning `{ flags: RedFlag[], cursedPhrases: [] }`
     - Three signals: `typosquatting` (W_TYPOSQUATTING=35), `homograph-punycode` (W_HOMOGRAPH_PUNYCODE=35), `display-name-mismatch` (W_DISPLAY_NAME_MISMATCH=25)
     - One `RedFlag` per signal per message; evidence is the first match
@@ -81,7 +81,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - _Requirements: 2.3, 2.4, 2.7, 7.1, 7.2, 7.3_
 
 - [x] 6. Link detector
-  - [x] 6.1 Implement `packages/engine/src/detectors/link.js`
+  - [x] 6.1 Implement `backend/engine/src/detectors/link.js`
     - Implement `detectLinks(input)` returning `{ flags: RedFlag[], cursedPhrases: [] }`
     - Three signals: `raw-ip-url` (W_RAW_IP_URL=35), `risky-tld` (W_RISKY_TLD=15), `link-text-mismatch` (W_LINK_TEXT_MISMATCH=35)
     - One `RedFlag` per signal; evidence is the first match; explanations from design table
@@ -104,7 +104,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - _Requirements: 2.5, 2.6, 2.8, 7.1_
 
 - [x] 7. Content detector
-  - [x] 7.1 Implement `packages/engine/src/detectors/content.js`
+  - [x] 7.1 Implement `backend/engine/src/detectors/content.js`
     - Implement `detectContent(input)` returning `{ flags: RedFlag[], cursedPhrases: CursedPhrase[] }`
     - Four signals: `urgency-en` (15), `urgency-bn` (15), `credential-request` (20), `suspicious-attachment` (20)
     - One `RedFlag` per signal; evidence is the first match; explanations from design table
@@ -128,7 +128,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - _Requirements: 2.9, 2.10, 2.11, 2.12, 3.2, 3.3, 7.1_
 
 - [x] 8. Auth-headers detector
-  - [x] 8.1 Implement `packages/engine/src/detectors/auth-headers.js`
+  - [x] 8.1 Implement `backend/engine/src/detectors/auth-headers.js`
     - Implement `detectAuthHeaders(input)` returning `{ flags: RedFlag[], cursedPhrases: [] }`
     - Three signals: `spf-fail` (W_SPF_FAIL=20), `dkim-fail` (W_DKIM_FAIL=20), `dmarc-fail` (W_DMARC_FAIL=15)
     - One `RedFlag` per signal; evidence is the matched fragment (e.g. `"dkim=fail"`); explanations from design table
@@ -149,7 +149,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - _Requirements: 2.13, 2.14, 2.15, 7.1_
 
 - [x] 9. Blend function
-  - [x] 9.1 Implement `packages/engine/src/blend.js`
+  - [x] 9.1 Implement `backend/engine/src/blend.js`
     - Implement `blend(l1Score, l2Hit, l3Score, flags)` → integer 0–100; accept flags as `Array<string>` or `Set<string>`; normalize with `new Set(flags)`
     - Rule 4.1: `l2Hit` → `risk = max(BLEND_L2_FLOOR, l1Score)`
     - Rule 4.2: `l3Score !== null` → `risk = BLEND_L1_WEIGHT * l1Score + BLEND_L3_WEIGHT * l3Score`
@@ -177,7 +177,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - _Requirements: 4.1–4.10, 11.1–11.5_
 
 - [x] 10. Verdict function
-  - [x] 10.1 Implement `packages/engine/src/verdict.js`
+  - [x] 10.1 Implement `backend/engine/src/verdict.js`
     - Implement `verdictFor(riskScore)` → `"pookie" | "skeptical" | "poltergeist"`
     - `≤ VERDICT_POOKIE_MAX (30)` → `"pookie"`; `≤ VERDICT_SKEPTICAL_MAX (69)` → `"skeptical"`; else → `"poltergeist"`
     - Imports: `config.js` only
@@ -190,7 +190,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - _Requirements: 5.2–5.4_
 
 - [x] 11. Score orchestrator and public API
-  - [x] 11.1 Implement `packages/engine/src/score.js` and `packages/engine/src/index.js`
+  - [x] 11.1 Implement `backend/engine/src/score.js` and `backend/engine/src/index.js`
     - Implement `score(input, options)` → `RiskResult` per design `score.js` section
     - Input validation: `typeof input !== "string"` → `TypeError("input must be a string")`; `input.length > MAX_INPUT_LENGTH` → `RangeError("input exceeds 4000 characters")`; `const opts = options ?? {}`; `l2Hit = opts.l2Hit === true`; `l3Score` defaults to `null`; non-null non-integer-0–100 `l3Score` → `RangeError("l3Score must be an integer 0-100 or null")`; brands from `opts.brands` or `DEFAULT_BRANDS`
     - L1 pipeline: `detectIdentity` → `detectAuthHeaders` → `detectLinks` → `detectContent` (fixed order); group by `SIGNAL_CATEGORY`; cap per category; sum; clamp 0–100; one-flag-per-signal enforced
@@ -210,10 +210,10 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - _Requirements: 1.1–1.8, 6.1–6.2, 8.1, 9.2_
 
 - [x] 12. Checkpoint — Ensure all unit tests pass
-  - Run `vitest --run` from `packages/engine/` and confirm zero failures before proceeding to integration tests
+  - Run `vitest --run` from `backend/engine/` and confirm zero failures before proceeding to integration tests
   - Ensure all tests pass, ask the user if questions arise.
 
-- [x] 13. `packages/engine/test/golden.test.js`
+- [x] 13. `backend/engine/test/golden.test.js`
   - Implement all 10 golden test cases from the design Testing Strategy table; each asserts exact verdict, exact riskScore, exact set of flag ids, `cursedPhrases` non-empty iff a content signal fired, expected `confidence`
     1. `"Hi, lunch at 1pm tomorrow? Let me know."` → `pookie`, riskScore 0, no flags
     2. `"Check your balance at http://bad.xyz/portal and enter your password."` → `skeptical`, riskScore 35, flags `{risky-tld, credential-request}`
@@ -230,7 +230,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - Imports from `index.js` and `config.js`
   - _Requirements: 10.1–10.10_
 
-- [x] 14. `packages/engine/test/property.test.js`
+- [x] 14. `backend/engine/test/property.test.js`
   - Implement all 20 properties P1–P20 using fast-check; each tagged `// Feature: threat-scoring, Property N: <description>`; minimum 100 iterations each
   - P13–P19 drive `blend` and `verdictFor` directly; P1–P12 and P20 drive `score`
   - Arbitraries per design Testing Strategy section (l1Score, l2Hit, l3Score, flags as Array/Set, invalid l3Score, non-string input, text input ≤ 4000, adversarial input for P20)
@@ -240,7 +240,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - _Requirements: 11.1–11.7_
 
 - [ ] 15. Final verification checkpoint
-  - Run `vitest --run` from `packages/engine/` and verify all tests pass with zero failures
+  - Run `vitest --run` from `backend/engine/` and verify all tests pass with zero failures
   - Confirm no inline numeric literals in source files outside `config.js` (grep check)
   - Confirm no imports of browser or Node.js built-in APIs anywhere in `src/`
   - Ensure all tests pass, ask the user if questions arise.

@@ -12,7 +12,7 @@ import { createAnalyzeRouter } from "./routes/analyze.js";
 import { createSafeBrowsingRouter } from "./routes/safebrowsing.js";
 import { createUnwrapRouter } from "./routes/unwrap.js";
 
-const DEFAULT_CLIENT_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../client/dist");
+const DEFAULT_CLIENT_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../frontend/dist");
 
 /** CORS: only origins listed in ALLOWED_ORIGINS get CORS headers. Others get none (browser blocks them). */
 function cors(allowedOrigins) {
@@ -80,7 +80,7 @@ export function createApp({ env = loadEnv({}), fetchImpl, lookupImpl = dns.looku
         res.sendFile(path.join(clientDist, "index.html"));
       });
     } else {
-      console.warn("static: client/dist/index.html not found, serving the API only");
+      console.warn("static: frontend/dist/index.html not found, serving the API only");
     }
   }
 

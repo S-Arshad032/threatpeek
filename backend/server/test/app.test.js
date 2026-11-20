@@ -150,7 +150,7 @@ describe("static hosting", () => {
   });
   afterAll(() => rmSync(dist, { recursive: true, force: true }));
 
-  it("serves client/dist with an index.html fallback in production", async () => {
+  it("serves frontend/dist with an index.html fallback in production", async () => {
     const app = createApp({ env: loadEnv({ NODE_ENV: "production" }), lookupImpl, clientDist: dist });
     const asset = await request(app).get("/assets/app.js");
     expect(asset.status).toBe(200);

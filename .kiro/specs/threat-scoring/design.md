@@ -2,7 +2,7 @@
 
 ## Overview
 
-The threat-scoring engine is a pure-JavaScript ES-module library in `packages/engine`. It accepts a text message (email body, SMS or URL) and returns a structured risk assessment (`RiskResult`). It has no I/O, no browser APIs and no Node.js built-ins, so it runs unchanged in browsers, Node.js, Deno and edge runtimes.
+The threat-scoring engine is a pure-JavaScript ES-module library in `backend/engine`. It accepts a text message (email body, SMS or URL) and returns a structured risk assessment (`RiskResult`). It has no I/O, no browser APIs and no Node.js built-ins, so it runs unchanged in browsers, Node.js, Deno and edge runtimes.
 
 Analysis happens in three layers:
 
@@ -51,7 +51,7 @@ identity.js         link.js      content.js   auth-headers.js
 ### File structure
 
 ```
-packages/engine/
+backend/engine/
   src/
     config.js
     brands.js
@@ -557,7 +557,7 @@ Nothing else throws. An empty string, a string with no signals, omitted or `null
 
 ## Testing Strategy
 
-Vitest is the test runner and fast-check provides property-based testing (do not hand-roll property generators). Every property runs at least 100 iterations. All tests live in `packages/engine/test/`. Fixtures use only fictional brands and the reserved TLDs `.example`, `.test`, `.invalid`. Each property test carries a comment `// Feature: threat-scoring, Property N: <text>`.
+Vitest is the test runner and fast-check provides property-based testing (do not hand-roll property generators). Every property runs at least 100 iterations. All tests live in `backend/engine/test/`. Fixtures use only fictional brands and the reserved TLDs `.example`, `.test`, `.invalid`. Each property test carries a comment `// Feature: threat-scoring, Property N: <text>`.
 
 ### Golden tests (`golden.test.js`)
 
