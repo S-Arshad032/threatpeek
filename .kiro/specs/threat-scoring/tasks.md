@@ -209,7 +209,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - `confidence` is `"limited"` without `l3Score`; `"full"` with valid `l3Score`
     - _Requirements: 1.1–1.8, 6.1–6.2, 8.1, 9.2_
 
-- [ ] 12. Checkpoint — Ensure all unit tests pass
+- [x] 12. Checkpoint — Ensure all unit tests pass
   - Run `vitest --run` from `packages/engine/` and confirm zero failures before proceeding to integration tests
   - Ensure all tests pass, ask the user if questions arise.
 
