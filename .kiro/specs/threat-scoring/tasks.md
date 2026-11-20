@@ -189,8 +189,8 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - 70 → `"poltergeist"`, 100 → `"poltergeist"`
     - _Requirements: 5.2–5.4_
 
-- [ ] 11. Score orchestrator and public API
-  - [ ] 11.1 Implement `packages/engine/src/score.js` and `packages/engine/src/index.js`
+- [x] 11. Score orchestrator and public API
+  - [x] 11.1 Implement `packages/engine/src/score.js` and `packages/engine/src/index.js`
     - Implement `score(input, options)` → `RiskResult` per design `score.js` section
     - Input validation: `typeof input !== "string"` → `TypeError("input must be a string")`; `input.length > MAX_INPUT_LENGTH` → `RangeError("input exceeds 4000 characters")`; `const opts = options ?? {}`; `l2Hit = opts.l2Hit === true`; `l3Score` defaults to `null`; non-null non-integer-0–100 `l3Score` → `RangeError("l3Score must be an integer 0-100 or null")`; brands from `opts.brands` or `DEFAULT_BRANDS`
     - L1 pipeline: `detectIdentity` → `detectAuthHeaders` → `detectLinks` → `detectContent` (fixed order); group by `SIGNAL_CATEGORY`; cap per category; sum; clamp 0–100; one-flag-per-signal enforced
@@ -199,7 +199,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Imports: `config.js`, `brands.js`, all four detectors, `blend.js`, `verdict.js`
     - _Requirements: 1.1–1.8, 4.1–4.10, 5.5, 6.1–6.2, 8.1–8.3, 9.1–9.2_
 
-  - [ ]* 11.2 Unit tests for `score.js`
+  - [x]* 11.2 Unit tests for `score.js`
     - `score(123)` → `TypeError`; `score("x".repeat(4001))` → `RangeError`; `score("hi", { l3Score: 1.5 })` → `RangeError`; `score("hi", null)` → valid result
     - `score("hi")` and `score("hi", {})` → deeply equal results
     - `l3Score` 0 and 100 accepted without throwing
