@@ -230,7 +230,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - Imports from `index.js` and `config.js`
   - _Requirements: 10.1–10.10_
 
-- [ ] 14. `packages/engine/test/property.test.js`
+- [x] 14. `packages/engine/test/property.test.js`
   - Implement all 20 properties P1–P20 using fast-check; each tagged `// Feature: threat-scoring, Property N: <description>`; minimum 100 iterations each
   - P13–P19 drive `blend` and `verdictFor` directly; P1–P12 and P20 drive `score`
   - Arbitraries per design Testing Strategy section (l1Score, l2Hit, l3Score, flags as Array/Set, invalid l3Score, non-string input, text input ≤ 4000, adversarial input for P20)
