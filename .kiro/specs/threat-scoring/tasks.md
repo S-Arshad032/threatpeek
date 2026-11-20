@@ -176,14 +176,14 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - `l1=0, flags=[suspicious-attachment]` → 40
     - _Requirements: 4.1–4.10, 11.1–11.5_
 
-- [ ] 10. Verdict function
-  - [ ] 10.1 Implement `packages/engine/src/verdict.js`
+- [x] 10. Verdict function
+  - [x] 10.1 Implement `packages/engine/src/verdict.js`
     - Implement `verdictFor(riskScore)` → `"pookie" | "skeptical" | "poltergeist"`
     - `≤ VERDICT_POOKIE_MAX (30)` → `"pookie"`; `≤ VERDICT_SKEPTICAL_MAX (69)` → `"skeptical"`; else → `"poltergeist"`
     - Imports: `config.js` only
     - _Requirements: 5.1–5.4_
 
-  - [ ]* 10.2 Unit tests for `verdict.js`
+  - [x]* 10.2 Unit tests for `verdict.js`
     - 0 → `"pookie"`, 30 → `"pookie"`
     - 31 → `"skeptical"`, 69 → `"skeptical"`
     - 70 → `"poltergeist"`, 100 → `"poltergeist"`
