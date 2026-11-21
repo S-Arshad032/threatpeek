@@ -69,7 +69,7 @@ curl https://your-domain/api/health
 
 If the log says `index.html not found`, the build step did not run or `STATIC_DIR` points to the wrong folder. The API still works in that case.
 
-Point your host's health check at `/api/health`. Note that this route counts toward the 30-requests-a-minute limit, so do not check more often than every few seconds.
+Use `/api/health` as your host's health check path (for example, the Render "Health Check Path"). It is exempt from rate limiting, so frequent checks never get a `429`. It only ever returns `{"ok":true}` and shows no keys or internal details.
 
 ## Security headers
 

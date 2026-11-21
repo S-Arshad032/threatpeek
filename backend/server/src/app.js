@@ -80,9 +80,11 @@ export function createApp({ env = loadEnv({}), fetchImpl, lookupImpl = dns.looku
 
   const api = express.Router();
   api.use(cors(env.ALLOWED_ORIGINS));
+  // Before the rate limiter on purpose: host health checks must never get a 429.
+  // Static answer only, no internal state.
+  api.get("/health", (_req, res) => res.json({ ok: true }));
   api.use(limiters.api);
   api.use(express.json({ limit: BODY_LIMIT }));
-  api.get("/health", (_req, res) => res.json({ ok: true }));
   // Unwrap uses undici's fetch with the SSRF-safe agent unless a fake is injected.
   api.use(createUnwrapRouter({ fetchImpl, lookupImpl }));
   api.use(createSafeBrowsingRouter({ env, fetchImpl: apiFetch, now }));

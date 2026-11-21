@@ -10,6 +10,9 @@ import { fakeLookup, fakeResponse } from "./helpers.js";
 const lookupImpl = fakeLookup({ "public.example": "93.184.216.34" });
 const env = loadEnv({ ALLOWED_ORIGINS: "http://localhost:5173,https://app.example" });
 const make = (over = {}) => createApp({ env, lookupImpl, fetchImpl: vi.fn(async () => fakeResponse(200, { json: {} })), ...over });
+// A cheap rate-limited route: with no Safe Browsing key it answers 200 { hit: false, checked: false }
+// without any network call. (/api/health is exempt from rate limits, so it cannot be used here.)
+const limitedCall = (app) => request(app).post("/api/safebrowsing").send({ urls: ["https://fine.example/"] });
 
 describe("app basics", () => {
   it("GET /api/health", async () => {
@@ -74,10 +77,10 @@ describe("rate limits", () => {
   it("allows 30 /api requests per minute, then 429 rate_limited", async () => {
     const app = make();
     for (let i = 0; i < 30; i++) {
-      const res = await request(app).get("/api/health");
+      const res = await limitedCall(app);
       expect(res.status).toBe(200);
     }
-    const res = await request(app).get("/api/health");
+    const res = await limitedCall(app);
     expect(res.status).toBe(429);
     expect(res.body).toEqual({ error: "rate_limited", message: expect.any(String) });
   });
@@ -91,14 +94,31 @@ describe("rate limits", () => {
     const res = await request(app).post("/api/analyze").send({ text: "hi" });
     expect(res.status).toBe(429);
     expect(res.body.error).toBe("rate_limited");
-    // Other routes still work (11 of 30 used).
-    expect((await request(app).get("/api/health")).status).toBe(200);
+    // Other limited routes still work (11 of 30 used).
+    expect((await limitedCall(app)).status).toBe(200);
   });
 
   it("each app has its own counters", async () => {
     const a = make();
-    for (let i = 0; i < 30; i++) await request(a).get("/api/health");
-    expect((await request(make()).get("/api/health")).status).toBe(200);
+    for (let i = 0; i < 30; i++) await limitedCall(a);
+    expect((await limitedCall(a)).status).toBe(429);
+    expect((await limitedCall(make())).status).toBe(200);
+  });
+
+  it("never limits /api/health: 100 rapid requests all get 200 while /api/analyze is still limited", async () => {
+    const app = make();
+    const results = await Promise.all(Array.from({ length: 100 }, () => request(app).get("/api/health")));
+    for (const res of results) {
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ ok: true });
+      expect(res.text).toBe('{"ok":true}');
+      expect(res.headers["content-security-policy"]).toBeDefined();
+      expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    }
+    // Health requests used none of the budget: all 10 analyze calls pass, the 11th is limited.
+    for (let i = 0; i < 10; i++) expect((await request(app).post("/api/analyze").send({ text: `hi ${i}` })).status).toBe(200);
+    expect((await request(app).post("/api/analyze").send({ text: "hi" })).status).toBe(429);
+    expect((await request(app).get("/api/health")).status).toBe(200);
   });
 });
 
@@ -232,13 +252,13 @@ describe("security headers", () => {
 
 describe("trust proxy", () => {
   const exhaust = async (app, xff) => {
-    for (let i = 0; i < 30; i++) await request(app).get("/api/health").set("X-Forwarded-For", xff);
+    for (let i = 0; i < 30; i++) await limitedCall(app).set("X-Forwarded-For", xff);
   };
 
   it("ignores X-Forwarded-For by default, so a client cannot dodge the rate limit", async () => {
     const app = make();
     await exhaust(app, "203.0.113.1");
-    const res = await request(app).get("/api/health").set("X-Forwarded-For", "203.0.113.2");
+    const res = await limitedCall(app).set("X-Forwarded-For", "203.0.113.2");
     expect(res.status).toBe(429);
   });
 
@@ -246,9 +266,9 @@ describe("trust proxy", () => {
     const app = make({ env: loadEnv({ TRUST_PROXY: "1" }) });
     expect(app.get("trust proxy")).toBe(1);
     await exhaust(app, "203.0.113.1");
-    expect((await request(app).get("/api/health").set("X-Forwarded-For", "203.0.113.1")).status).toBe(429);
-    expect((await request(app).get("/api/health").set("X-Forwarded-For", "203.0.113.2")).status).toBe(200);
+    expect((await limitedCall(app).set("X-Forwarded-For", "203.0.113.1")).status).toBe(429);
+    expect((await limitedCall(app).set("X-Forwarded-For", "203.0.113.2")).status).toBe(200);
     // Only the last hop is trusted: a faked left-most entry does not change the key.
-    expect((await request(app).get("/api/health").set("X-Forwarded-For", "198.51.100.9, 203.0.113.1")).status).toBe(429);
+    expect((await limitedCall(app).set("X-Forwarded-For", "198.51.100.9, 203.0.113.1")).status).toBe(429);
   });
 });

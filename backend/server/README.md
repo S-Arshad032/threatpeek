@@ -49,7 +49,7 @@ The server never logs keys or pasted text. It logs only upstream status codes.
 
 ## Endpoints
 
-All bodies are JSON with a 16 kB limit. Text and URLs are at most 4000 characters. Every `/api` route allows 30 requests per minute per IP. `/api/analyze` allows only 10. Over the limit you get `429 { "error": "rate_limited", ... }`.
+All bodies are JSON with a 16 kB limit. Text and URLs are at most 4000 characters. Every `/api` route except `/api/health` allows 30 requests per minute per IP. `/api/analyze` allows only 10. Over the limit you get `429 { "error": "rate_limited", ... }`.
 
 Errors always have this form, with no stack traces:
 
@@ -58,6 +58,8 @@ Errors always have this form, with no stack traces:
 ```
 
 ### `GET /api/health`
+
+Not rate-limited, so it is safe as a host health check. It always returns exactly `{"ok":true}`.
 
 ```sh
 curl http://localhost:3001/api/health
