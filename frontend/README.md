@@ -64,6 +64,8 @@ With `VITE_USE_MOCK=false`, the engine runs in the browser. If the text has link
 
 Never put API keys in the frontend. All keys live in `backend/server/.env`.
 
+The production build (`npm run build`) always uses the real flow: `frontend/.env.production` sets `VITE_USE_MOCK=false`, and Vite reads it in preference to `.env`. `api.js` only calls relative `/api/...` paths, so the deployed app talks to the server on its own domain. See [docs/deploy.md](../docs/deploy.md).
+
 ## Who owns what
 
 - **Yours to change freely:** everything in `frontend/src` except `api.js` and `mock.js` (for example `App.jsx`, `main.jsx`, new components and styles).

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createApp } from "../src/app.js";
+import { createApp, resolveStaticDir } from "../src/app.js";
 import { loadEnv } from "../src/env.js";
 import { fakeLookup, fakeResponse } from "./helpers.js";
 
@@ -159,7 +159,41 @@ describe("static hosting", () => {
     expect(deep.status).toBe(200);
     expect(deep.text).toContain("<title>ThreatPeek</title>");
     expect((await request(app).get("/api/health")).body).toEqual({ ok: true });
-    expect((await request(app).get("/api/nope")).status).toBe(404);
+    const apiMiss = await request(app).get("/api/nope");
+    expect(apiMiss.status).toBe(404);
+    expect(apiMiss.headers["content-type"]).toMatch(/application\/json/);
+    expect(apiMiss.body.error).toBe("not_found");
+    expect((await request(app).get("/api")).body.error).toBe("not_found");
+    const post = await request(app).post("/history/123");
+    expect(post.status).toBe(404);
+    expect(post.body.error).toBe("not_found");
+  });
+
+  it("serves STATIC_DIR outside production too", async () => {
+    const app = createApp({ env: loadEnv({ STATIC_DIR: dist }), lookupImpl });
+    const res = await request(app).get("/");
+    expect(res.status).toBe(200);
+    expect(res.text).toContain("<title>ThreatPeek</title>");
+  });
+
+  it("resolves a relative STATIC_DIR against backend/server/", () => {
+    const serverRoot = path.resolve(import.meta.dirname, "..");
+    expect(resolveStaticDir(undefined)).toBe(path.resolve(serverRoot, "../../frontend/dist"));
+    expect(resolveStaticDir("public")).toBe(path.join(serverRoot, "public"));
+    expect(resolveStaticDir(dist)).toBe(dist);
+  });
+
+  it("warns and keeps the API working when the directory is missing", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const missing = path.join(dist, "does-not-exist");
+      const app = createApp({ env: loadEnv({ NODE_ENV: "production", STATIC_DIR: missing }), lookupImpl });
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("not found"));
+      expect((await request(app).get("/api/health")).body).toEqual({ ok: true });
+      expect((await request(app).get("/")).body.error).toBe("not_found");
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("does not serve static files outside production", async () => {
@@ -167,5 +201,54 @@ describe("static hosting", () => {
     const res = await request(app).get("/");
     expect(res.status).toBe(404);
     expect(res.body.error).toBe("not_found");
+  });
+});
+
+describe("security headers", () => {
+  it("sets a CSP that allows only same-origin scripts, styles and API calls", async () => {
+    const res = await request(make()).get("/api/health");
+    const csp = res.headers["content-security-policy"];
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).toContain("style-src 'self'");
+    expect(csp).toContain("img-src 'self' data:");
+    expect(csp).toContain("connect-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).not.toContain("unsafe-eval");
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["x-frame-options"]).toBe("DENY");
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
+    expect(res.headers["strict-transport-security"]).toBeUndefined();
+  });
+
+  it("adds HSTS in production, also on JSON errors", async () => {
+    vi.spyOn(console, "warn").mockImplementationOnce(() => {});
+    const app = createApp({ env: loadEnv({ NODE_ENV: "production", STATIC_DIR: path.join(tmpdir(), "tp-none") }), lookupImpl });
+    const res = await request(app).get("/api/nope");
+    expect(res.headers["strict-transport-security"]).toMatch(/^max-age=\d+$/);
+    expect(res.headers["content-security-policy"]).toBeDefined();
+  });
+});
+
+describe("trust proxy", () => {
+  const exhaust = async (app, xff) => {
+    for (let i = 0; i < 30; i++) await request(app).get("/api/health").set("X-Forwarded-For", xff);
+  };
+
+  it("ignores X-Forwarded-For by default, so a client cannot dodge the rate limit", async () => {
+    const app = make();
+    await exhaust(app, "203.0.113.1");
+    const res = await request(app).get("/api/health").set("X-Forwarded-For", "203.0.113.2");
+    expect(res.status).toBe(429);
+  });
+
+  it("with TRUST_PROXY=1, rate limits each real client IP separately", async () => {
+    const app = make({ env: loadEnv({ TRUST_PROXY: "1" }) });
+    expect(app.get("trust proxy")).toBe(1);
+    await exhaust(app, "203.0.113.1");
+    expect((await request(app).get("/api/health").set("X-Forwarded-For", "203.0.113.1")).status).toBe(429);
+    expect((await request(app).get("/api/health").set("X-Forwarded-For", "203.0.113.2")).status).toBe(200);
+    // Only the last hop is trusted: a faked left-most entry does not change the key.
+    expect((await request(app).get("/api/health").set("X-Forwarded-For", "198.51.100.9, 203.0.113.1")).status).toBe(429);
   });
 });

@@ -26,7 +26,7 @@ You can also run `npm run dev` or `npm test` inside `backend/server/`.
 
 On Windows, run the tests from a path with an uppercase drive letter (`D:\...`). If Git Bash starts in `/d/...`, vitest loads twice and every suite fails.
 
-With `NODE_ENV=production`, the server also serves `frontend/dist` and falls back to `index.html`, so one service hosts the whole app.
+With `NODE_ENV=production` (or `STATIC_DIR` set), the server also serves `frontend/dist` and falls back to `index.html` for any other GET path, so one service hosts the whole app. `/api/*` never falls back: an unknown API path is a JSON 404. For the production build and start commands, see [docs/deploy.md](../../docs/deploy.md).
 
 ## Environment variables
 
@@ -41,7 +41,9 @@ The server reads them from `backend/server/.env` or the process environment. Emp
 | `OPENROUTER_API_KEY` | (none) | One OpenRouter key. The server never rotates keys or uses several accounts. |
 | `OPENROUTER_MODEL` | (none) | OpenRouter model id you choose, for example a `:free` model. |
 | `AI_DAILY_LIMIT` | `40` | Maximum OpenRouter calls per UTC day. The default stays under the free tier's 50. |
-| `NODE_ENV` | `development` | `production` turns on static hosting of `frontend/dist`. |
+| `NODE_ENV` | `development` | `production` turns on static hosting of `frontend/dist` and the HSTS header. The root `npm start` sets it. |
+| `STATIC_DIR` | `../../frontend/dist` | Built frontend folder. Relative paths are read from `backend/server/`. Setting it also turns on static hosting outside production. |
+| `TRUST_PROXY` | (off) | Proxy hops in front of the app (`1`-`10`), or a comma-separated list of proxy IPs, subnets or `loopback`/`linklocal`/`uniquelocal`. `true` and invalid values count as off. |
 
 The server never logs keys or pasted text. It logs only upstream status codes.
 
@@ -116,6 +118,10 @@ curl -X POST http://localhost:3001/api/analyze \
 - Each hop sends `HEAD`. On a 405 or 501 it retries once with `GET` and drops the connection after the headers. The body is never read or returned.
 - Requests send `User-Agent: ThreatPeek/0.1` and never send cookies or auth headers.
 
+## Security headers
+
+Every response sets `Content-Security-Policy` (same-origin scripts, styles, fonts and API calls, `data:` images, no framing), `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy` and `Permissions-Policy`. In production it also sets `Strict-Transport-Security`. The policy lives in `CONTENT_SECURITY_POLICY` in `src/config.js`.
+
 ## Deploying behind a proxy
 
-The rate limiter keys on `req.ip`. Behind a reverse proxy (Render, Fly, nginx, ...), every client then looks like the proxy's IP. Set Express `trust proxy` to match your proxy in `src/app.js` before you deploy. Do not trust `X-Forwarded-For` when there is no proxy, because clients can fake it.
+The rate limiter keys on `req.ip`. Behind a reverse proxy or load balancer, every client then looks like the proxy's IP. Set `TRUST_PROXY` to the number of proxies in front of the app (usually `1`), so `req.ip` becomes the real client IP from `X-Forwarded-For`. The default trusts nothing, which is right when there is no proxy: clients can fake `X-Forwarded-For`, so trusting it without a proxy would let them dodge the rate limit. See [docs/deploy.md](../../docs/deploy.md).

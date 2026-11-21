@@ -42,6 +42,23 @@ describe("loadEnv", () => {
     expect(loadEnv({ PORT: "8080", AI_DAILY_LIMIT: "10" })).toMatchObject({ PORT: 8080, AI_DAILY_LIMIT: 10 });
   });
 
+  it("TRUST_PROXY defaults to false and accepts only hop counts or address lists", () => {
+    expect(loadEnv({}).TRUST_PROXY).toBe(false);
+    expect(loadEnv({ TRUST_PROXY: "1" }).TRUST_PROXY).toBe(1);
+    expect(loadEnv({ TRUST_PROXY: " 2 " }).TRUST_PROXY).toBe(2);
+    expect(loadEnv({ TRUST_PROXY: "loopback, 10.0.0.0/8, ::1" }).TRUST_PROXY).toBe("loopback, 10.0.0.0/8, ::1");
+    for (const bad of ["", "false", "0", "true", "11", "-1", "abc", "10.0.0.0/33", "10.0.0.0/8/1", "1.2.3"]) {
+      expect(loadEnv({ TRUST_PROXY: bad }).TRUST_PROXY).toBe(false);
+    }
+  });
+
+  it("serves static files in production or when STATIC_DIR is set", () => {
+    expect(loadEnv({}).serveStatic).toBe(false);
+    expect(loadEnv({ NODE_ENV: "production" }).serveStatic).toBe(true);
+    expect(loadEnv({ STATIC_DIR: "  " })).toMatchObject({ STATIC_DIR: undefined, serveStatic: false });
+    expect(loadEnv({ STATIC_DIR: "/srv/web" })).toMatchObject({ STATIC_DIR: "/srv/web", serveStatic: true });
+  });
+
   it("returns a frozen object", () => {
     expect(Object.isFrozen(loadEnv({}))).toBe(true);
   });

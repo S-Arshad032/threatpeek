@@ -13,6 +13,6 @@ const app = createApp({ env });
 app.listen(env.PORT, () => {
   // Only booleans about the layers; never key values.
   console.log(
-    `ThreatPeek server on port ${env.PORT} (safebrowsing: ${Boolean(env.GOOGLE_SAFE_BROWSING_KEY)}, ai: ${env.aiActive}, mode: ${env.NODE_ENV})`,
+    `ThreatPeek server on port ${env.PORT} (safebrowsing: ${Boolean(env.GOOGLE_SAFE_BROWSING_KEY)}, ai: ${env.aiActive}, mode: ${env.NODE_ENV}, static: ${env.serveStatic}, trust proxy: ${env.TRUST_PROXY})`,
   );
 });

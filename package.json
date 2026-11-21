@@ -1,6 +1,14 @@
 {
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "workspaces": [
     "backend/*"
-  ]
+  ],
+  "scripts": {
+    "build": "npm ci && npm --prefix frontend ci --include=dev && npm --prefix frontend run build",
+    "start": "node backend/server/src/start-production.js",
+    "test": "npm test -w @threatpeek/engine && npm test -w @threatpeek/server && npm --prefix frontend test"
+  }
 }

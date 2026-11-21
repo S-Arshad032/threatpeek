@@ -38,6 +38,28 @@ export const AI_CACHE_MAX = 500;
 export const DEFAULT_PORT = 3001;
 export const DEFAULT_ALLOWED_ORIGINS = "http://localhost:5173";
 
+// Deployment.
+// Built frontend, relative to backend/server/ (a relative STATIC_DIR is resolved the same way).
+export const DEFAULT_STATIC_DIR = "../../frontend/dist";
+export const TRUST_PROXY_MAX_HOPS = 10;
+
+// Content-Security-Policy for the built Vite app: its scripts, styles and fonts come from our own
+// origin, the API is same-origin (/api), and nothing may frame the page.
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "media-src 'self' data: blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+export const HSTS_MAX_AGE_SECONDS = 180 * 24 * 60 * 60;
+
 // Blocked address ranges for the SSRF guard, as [network, prefixLength].
 export const BLOCKED_IPV4_CIDRS = Object.freeze([
   ["0.0.0.0", 8], // "this" network
