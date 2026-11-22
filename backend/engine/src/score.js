@@ -71,6 +71,7 @@ export function score(input, options) {
     l2Hit,
     l3Score,
     redFlags.map((f) => f.id),
+    { paymentInstruction: content.paymentInstruction },
   );
 
   return {

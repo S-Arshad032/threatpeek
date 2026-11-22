@@ -255,6 +255,13 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - [x] 16.4 Tests: positives for every new signal, 10 benign counterexamples, golden 11-13, P18 extended, P20 worst cases for the new regexes, new P21
   - _Requirements: 2.15–2.20, 3.3, 4.8, 4.10–4.13, 10.8, 10.11–10.13_
 
+- [x] 17. Text normalization, benchmark and rule tuning
+  - `src/util/normalize.js` + `test/normalize.test.js`: NFKC, lowercase, zero-width/control removal, whitespace collapse, leetspeak inside letter tokens, spaced-out letters; offset map so evidence quotes the original text (Requirement 2.21)
+  - `benchmark/dev.json` (60), `benchmark/heldout.json` (40), `benchmark/lib.js`, `benchmark/run.js` (`npm run benchmark [-- --set=dev|heldout]`, writes `benchmark/RESULTS.md`), `test/benchmark.test.js` (dev regression guard) (Requirement 13)
+  - Rules tuned on the dev set only: phrase families for urgency, prize, advance-fee, payment and secrecy; reverse word order and governed negation for `financial-info-request`; new signals `code-sharing-request`, `mistaken-payment`, `remote-access-request`; floor 4.12 needs a pressure signal or a hand-over instruction; floors 4.14 and 4.15 (Requirements 2.9-2.24, 4.12, 4.14, 4.15). Tests in `test/content-families.test.js`
+  - Held-out set run once at the end; numbers reported unchanged in the README
+  - _Requirements: 2.9-2.24, 3.3, 4.12, 4.14, 4.15, 13.1-13.4_
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for a faster MVP (but all property tests are needed to satisfy Requirement 11)

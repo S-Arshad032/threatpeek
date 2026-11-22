@@ -13,6 +13,8 @@ import {
   FLOOR_PRIZE_PAYMENT,
   FLOOR_FINANCIAL_INFO,
   FLOOR_UNUSUAL_PAYMENT,
+  FLOOR_CODE_SHARING,
+  FLOOR_MISTAKEN_PAYMENT,
   SCORE_MIN,
   SCORE_MAX,
 } from "./config.js";
@@ -22,9 +24,12 @@ import {
  * @param {boolean} l2Hit
  * @param {number | null} l3Score       integer 0-100 or null
  * @param {string[] | Set<string>} flags signal ids that fired
+ * @param {{ paymentInstruction?: boolean }} [context] facts from the content detector that are not
+ *        signals: `paymentInstruction` is true when the message explicitly says where to send the
+ *        payment ("send it to me", "pay to this account", "send me the codes")
  * @returns {number} integer riskScore 0-100
  */
-export function blend(l1Score, l2Hit, l3Score, flags) {
+export function blend(l1Score, l2Hit, l3Score, flags, context) {
   const flagSet = new Set(flags);
   const has = (id) => flagSet.has(id);
 
@@ -54,7 +59,17 @@ export function blend(l1Score, l2Hit, l3Score, flags) {
     risk = Math.max(risk, FLOOR_PRIZE_PAYMENT); // 4.10
   }
   if (has("financial-info-request")) risk = Math.max(risk, FLOOR_FINANCIAL_INFO); // 4.11
-  if (has("unusual-payment-method")) risk = Math.max(risk, FLOOR_UNUSUAL_PAYMENT); // 4.12
+  // 4.12: a gift card or crypto alone is ordinary ("Buy a gift card for your mom"); it needs pressure
+  // or an explicit hand-over instruction to count as a payment demand.
+  const paymentPressure =
+    has("urgency-en") ||
+    has("secrecy-pressure") ||
+    has("prize-lottery") ||
+    has("advance-fee-scheme") ||
+    context?.paymentInstruction === true;
+  if (has("unusual-payment-method") && paymentPressure) risk = Math.max(risk, FLOOR_UNUSUAL_PAYMENT); // 4.12
+  if (has("code-sharing-request")) risk = Math.max(risk, FLOOR_CODE_SHARING); // 4.14
+  if (has("mistaken-payment")) risk = Math.max(risk, FLOOR_MISTAKEN_PAYMENT); // 4.15
 
   return Math.round(Math.min(SCORE_MAX, Math.max(SCORE_MIN, risk))); // 4.13
 }

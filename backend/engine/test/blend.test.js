@@ -60,9 +60,28 @@ describe("blend: hard floors", () => {
     expect(blend(30, false, null, ["financial-info-request"])).toBe(50);
     expect(blend(30, false, 0, ["financial-info-request"])).toBe(50);
   });
-  it("4.12: unusual-payment-method >= 40", () => {
-    expect(blend(20, false, null, ["unusual-payment-method"])).toBe(40);
+  it("4.12: unusual-payment-method + pressure or a hand-over instruction >= 40", () => {
     expect(blend(30, false, null, ["unusual-payment-method", "secrecy-pressure"])).toBe(40);
+    expect(blend(35, false, null, ["unusual-payment-method", "urgency-en"])).toBe(40);
+    expect(blend(20, false, null, ["unusual-payment-method"], { paymentInstruction: true })).toBe(40);
+    expect(blend(45, false, null, ["unusual-payment-method", "prize-lottery"])).toBe(70); // 4.10 is higher
+  });
+  it("4.12: unusual-payment-method alone has no floor", () => {
+    // "Buy a gift card for your mom" is not a payment demand.
+    expect(blend(20, false, null, ["unusual-payment-method"])).toBe(20);
+    expect(blend(20, false, null, ["unusual-payment-method"], {})).toBe(20);
+    expect(blend(20, false, null, ["unusual-payment-method"], { paymentInstruction: false })).toBe(20);
+    expect(blend(30, false, null, ["unusual-payment-method", "credential-request"])).toBe(30);
+  });
+  it("4.14: code-sharing-request >= 50", () => {
+    expect(blend(30, false, null, ["code-sharing-request"])).toBe(50);
+    expect(blend(30, false, 0, ["code-sharing-request"])).toBe(50);
+  });
+  it("4.15: mistaken-payment >= 40", () => {
+    expect(blend(25, false, null, ["mistaken-payment"])).toBe(40);
+  });
+  it("remote-access-request alone has no floor", () => {
+    expect(blend(25, false, null, ["remote-access-request"])).toBe(25);
   });
   it("secrecy-pressure alone has no floor", () => {
     expect(blend(10, false, null, ["secrecy-pressure"])).toBe(10);

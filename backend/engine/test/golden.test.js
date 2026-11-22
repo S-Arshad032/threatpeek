@@ -11,6 +11,9 @@ const PHRASE_SIGNALS = new Set([
   "financial-info-request",
   "unusual-payment-method",
   "secrecy-pressure",
+  "code-sharing-request",
+  "mistaken-payment",
+  "remote-access-request",
 ]);
 
 const GOLDEN = [

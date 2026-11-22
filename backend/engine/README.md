@@ -29,11 +29,11 @@ const result = score("Enter your OTP at http://203.0.113.5/verify");
 
 Errors: `TypeError` when the input is not a string. `RangeError` when the input is longer than 4000 characters, or when `l3Score` is not an integer 0–100.
 
-The package also exports `blend(l1Score, l2Hit, l3Score, flags)` and `verdictFor(riskScore)`.
+The package also exports `blend(l1Score, l2Hit, l3Score, flags, context?)` and `verdictFor(riskScore)`. `context.paymentInstruction` is a fact from the content detector, not a signal: it lets a gift-card or crypto payment reach its floor when the message says where to send it.
 
 ## How it scores
 
-1. **L1 heuristics.** Four detectors run in order: identity, auth headers, links, content. Together they check 17 signals (English text only). Each signal's weight counts once, and each category has a cap: identity/auth 40, link 35, content 45.
+1. **L1 heuristics.** Four detectors run in order: identity, auth headers, links, content. Together they check 20 signals (English text only). The content detector first normalizes the text (NFKC, lowercase, no zero-width characters, collapsed whitespace, leetspeak and spaced-out letters undone) and maps every match back, so evidence always quotes the original text. Each signal's weight counts once, and each category has a cap: identity/auth 40, link 35, content 45.
 2. **Blend.** The L1 score is combined with `l2Hit` and `l3Score`. The result never drops below 0.8 × L1. Hard floors then apply to dangerous combinations, for example a look-alike domain plus a password request scores at least 70, and a prize or inheritance story plus a request for card details or gift-card payment also scores at least 70.
 3. **Verdict.** The blended score maps to `verdictFor`.
 
@@ -51,6 +51,15 @@ npm install
 npm test
 ```
 
-The suite has unit tests per module, 10 golden tests, and fast-check property tests (P1–P20 from the design). Fixtures use only fictional brands and reserved TLDs (`.example`, `.test`, `.invalid`).
+The suite has unit tests per module, 13 golden tests, fast-check property tests (P1–P21 from the design), and a regression check on the benchmark dev set. Fixtures use only fictional brands and reserved TLDs (`.example`, `.test`, `.invalid`).
+
+## Benchmark
+
+```sh
+npm run benchmark                    # dev set (60 messages, used to tune the rules)
+npm run benchmark -- --set=heldout   # held-out set (40 different messages, never tuned on)
+```
+
+Each run scores every message with `score(text)` only (no AI, no Safe Browsing). It prints counts by label and verdict, detection rate (scam scored 31 or more), strong detection rate (70 or more), false-alarm rate (normal message scored 31 or more), detection per scam category, and every miss and false alarm. It also updates that set's section of [`benchmark/RESULTS.md`](benchmark/RESULTS.md). The sets are small, synthetic and English-only, so the numbers are not a guarantee.
 
 On Windows, run the tests from a path whose drive letter is uppercase (`D:\...`). If Git Bash starts in `/d/...`, the working directory gets a lowercase drive letter, vitest loads two copies of itself, and every suite fails with "Cannot read properties of undefined (reading 'config')".

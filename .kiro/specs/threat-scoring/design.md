@@ -58,6 +58,7 @@ backend/engine/
     util/
       hostname.js        (hostname extractors, registrable-domain and brand-legitimacy helpers)
       levenshtein.js     (edit distance)
+      normalize.js       (content-text normalization with an offset map back to the original)
     detectors/
       identity.js
       link.js
@@ -70,6 +71,12 @@ backend/engine/
   test/
     golden.test.js
     property.test.js
+    benchmark.test.js    (dev-set regression guard)
+  benchmark/
+    dev.json             (60 labelled messages, used for tuning)
+    heldout.json         (40 different messages, never tuned on)
+    lib.js, run.js       (`npm run benchmark [-- --set=dev|heldout]`)
+    RESULTS.md           (generated)
 ```
 
 ### Layering rules
@@ -134,6 +141,9 @@ export const W_ADVANCE_FEE_SCHEME     = 25;
 export const W_FINANCIAL_INFO_REQUEST = 30;
 export const W_UNUSUAL_PAYMENT_METHOD = 20;
 export const W_SECRECY_PRESSURE       = 10;
+export const W_CODE_SHARING_REQUEST   = 30;
+export const W_MISTAKEN_PAYMENT       = 25;
+export const W_REMOTE_ACCESS_REQUEST  = 25;
 
 // Category caps
 export const CAP_IDENTITY_AUTH = 40;
@@ -152,12 +162,14 @@ export const FLOOR_CRED_URGENCY   = 55;
 export const FLOOR_ATTACHMENT     = 40;
 export const FLOOR_PRIZE_PAYMENT  = 70;
 export const FLOOR_FINANCIAL_INFO = 50;
-export const FLOOR_UNUSUAL_PAYMENT = 40;
+export const FLOOR_UNUSUAL_PAYMENT = 40;   // only with a pressure signal or a hand-over instruction
+export const FLOOR_CODE_SHARING   = 50;
+export const FLOOR_MISTAKEN_PAYMENT = 40;
 
 // Content proximity windows (characters)
 export const REQUEST_PROXIMITY_CHARS = 60;
 export const PRIZE_PROXIMITY_CHARS   = 60;
-export const NEGATION_WINDOW_CHARS   = 30;
+export const NEGATION_GOVERNED_MAX_WORDS = 4;   // helper words between a negation and the verb it governs
 export const MONEY_DIGITS_MAX        = 15;
 export const MONEY_SPACE_MAX         = 3;
 
@@ -187,7 +199,8 @@ export const SIGNAL_CATEGORY = {
   "raw-ip-url": "link", "risky-tld": "link", "link-text-mismatch": "link",
   "urgency-en": "content", "credential-request": "content", "suspicious-attachment": "content",
   "prize-lottery": "content", "advance-fee-scheme": "content", "financial-info-request": "content",
-  "unusual-payment-method": "content", "secrecy-pressure": "content",
+  "unusual-payment-method": "content", "secrecy-pressure": "content", "code-sharing-request": "content",
+  "mistaken-payment": "content", "remote-access-request": "content",
 };
 export const RISKY_TLDS = ["xyz", "top", "click", "tk", "ml", "ga", "cf"]; // exactly Requirement 2.6
 export const DANGEROUS_EXTENSIONS = ["exe", "scr", "vbs", "bat", "cmd", "js", "lnk", "iso", "img"];
@@ -197,7 +210,8 @@ export const URGENCY_EN_PHRASES = [ /* see content.js section */ ];
 // Also (see content.js section): PRIZE_PHRASES, CONGRATS_WORDS, PRIZE_WORDS, CURRENCY_SYMBOLS,
 // CURRENCY_CODES, CURRENCY_WORDS, LARGE_AMOUNT_WORDS, ADVANCE_FEE_PHRASES, FINANCIAL_REQUEST_VERBS,
 // FINANCIAL_INFO_TERMS, NEGATION_WORDS, PAYMENT_VERBS, PAYMENT_METHODS, MOBILE_WALLET_TERMS,
-// FEE_WORDS, SECRECY_PHRASES
+// FEE_WORDS, SECRECY_PHRASES, and the phrase families added with the benchmark (URGENCY_EXTRA_PHRASES,
+// ADVANCE_FEE_TERMS, CODE_TERMS, RETURN_REQUESTS, LEET_MAP, ...). See src/config.js for the full lists.
 ```
 
 ### brands.js
@@ -254,14 +268,14 @@ function score(input, options):
 
 **Safety floor.** The smallest single flag weight is 10 (`secrecy-pressure`), so any message with a flag has `l1Score >= 10`, and the `0.8 x l1Score` floor gives `riskScore >= 8 > 0` (Requirement 8.1).
 
-**Content cap.** The eight Content signals add up to 165 points before the cap, and `CAP_CONTENT` stays at 45. Two strong content signals already reach the cap; the dangerous combinations are lifted further by the hard floors (4.8, 4.10-4.12), not by raising the cap. The engine never produces any wording that says a message is safe; `confidence: "limited"` tells the UI the result is a heuristics-only estimate (Requirement 8.3).
+**Content cap.** The eleven Content signals add up to 245 points before the cap, and `CAP_CONTENT` stays at 45. Two strong content signals already reach the cap; the dangerous combinations are lifted further by the hard floors (4.8, 4.10-4.12, 4.14, 4.15), not by raising the cap. The engine never produces any wording that says a message is safe; `confidence: "limited"` tells the UI the result is a heuristics-only estimate (Requirement 8.3).
 
 ---
 
 ## blend.js
 
 ```
-function blend(l1Score, l2Hit, l3Score, flags):
+function blend(l1Score, l2Hit, l3Score, flags, context = {}):
   const flagSet = new Set(flags)          // accepts Array or Set
 
   if l2Hit:                    risk = max(BLEND_L2_FLOOR, l1Score)                      // Rule 4.1
@@ -280,12 +294,19 @@ function blend(l1Score, l2Hit, l3Score, flags):
      (has("financial-info-request") || has("unusual-payment-method")):
                                                           risk = max(risk, FLOOR_PRIZE_PAYMENT)   // 4.10
   if has("financial-info-request"):                       risk = max(risk, FLOOR_FINANCIAL_INFO)  // 4.11
-  if has("unusual-payment-method"):                       risk = max(risk, FLOOR_UNUSUAL_PAYMENT) // 4.12
+  if has("unusual-payment-method") &&
+     (has("urgency-en") || has("secrecy-pressure") || has("prize-lottery") ||
+      has("advance-fee-scheme") || context.paymentInstruction):
+                                                          risk = max(risk, FLOOR_UNUSUAL_PAYMENT) // 4.12
+  if has("code-sharing-request"):                         risk = max(risk, FLOOR_CODE_SHARING)    // 4.14
+  if has("mistaken-payment"):                             risk = max(risk, FLOOR_MISTAKEN_PAYMENT) // 4.15
 
   return Math.round(Math.min(100, Math.max(0, risk)))                                   // 4.13
 ```
 
 The 0.8 x L1 floor is applied before the hard floors; hard floors can only raise the score. Clamp and round are always last.
+
+`context.paymentInstruction` comes from the content detector (`score()` passes it through). It is not a signal and has no weight: it only says the message names where to send the payment ("send it to me", "pay to this account", "send me the codes"). A gift card or crypto mentioned with no pressure and no instruction ("Buy a gift card for your mom") gets no floor and stays at 20.
 
 ## verdict.js
 
@@ -433,7 +454,9 @@ All inner groups are negated classes with explicit length caps; the HTML pattern
 
 ### content.js
 
-Signals: `urgency-en`, `credential-request`, `suspicious-attachment`, `prize-lottery`, `advance-fee-scheme`, `financial-info-request`, `unusual-payment-method`, `secrecy-pressure`. All Content, English text only. Every signal except `suspicious-attachment` produces `cursedPhrases`. Flags are emitted in that order. Cursed phrases are collected in the same order (urgency, credential, then the five scam signals), de-duplicated by lowercase text and limited to `MAX_CURSED_PHRASES` (20).
+Signals: `urgency-en`, `credential-request`, `suspicious-attachment`, `prize-lottery`, `advance-fee-scheme`, `financial-info-request`, `unusual-payment-method`, `secrecy-pressure`, `code-sharing-request`, `mistaken-payment`, `remote-access-request`. All Content, English text only. Every signal except `suspicious-attachment` produces `cursedPhrases`. Flags are emitted in that order. Cursed phrases are collected in the same order (urgency, credential, then the scam signals), de-duplicated by lowercase text and limited to `MAX_CURSED_PHRASES` (20).
+
+**Normalization (`util/normalize.js`, Requirement 2.21).** All phrase signals match a normalized copy of the input: NFKC per base character plus its combining marks, lowercase, zero-width and control characters dropped, each whitespace run collapsed to one `" "` (or `"\n"` if it held a line break, so sentence boundaries survive), leetspeak mapped inside tokens of letters/digits/`@`/`$` that contain a letter (`LEET_MAP`: @→a, 0→o, 1→i, $→s, 3→e, 5→s; tokens with a currency symbol next to a digit, number-first tokens such as "10am" or "$1million" and letters+number codes such as "mp3" are left alone), and `SPACED_LETTERS_MIN` (4) or more single letters separated by single spaces joined. Every normalized character keeps the [start, end) span of the original characters it came from, so `toOriginal(start, end)` maps a match back and evidence/cursed phrases are slices of the original input. A second string, `cased`, has the same length and offsets but keeps letter case and leet symbols; the case-sensitive PIN/OTP regex runs on it. The attachment check, like the link and identity detectors, reads the raw input. Every step is one linear pass.
 
 Phrase lists are compiled the same way everywhere: each phrase is regex-escaped, single spaces become `\s+`, an apostrophe also accepts the typographic `’`, and the phrases are joined with `|` inside `\b(?:...)\b` with the `gi` flags.
 
@@ -475,13 +498,18 @@ Each match becomes a `CursedPhrase`. One `RedFlag` per message.
 #### Shared building blocks for the scam signals
 
 ```js
-NEAR        = `[^.!?\n]{0,60}?`        // REQUEST_PROXIMITY_CHARS: same sentence, same line, bounded
-NOT_NEGATED = `(?<!\b(?:never|not|don['’]t|won['’]t|can['’]t|cannot)\b[^.!?\n]{0,30})`  // NEGATION_WINDOW_CHARS
+NEAR         = `(?:[^.!?\n]|(?<=\d)\.(?=\d)){0,60}?`  // REQUEST_PROXIMITY_CHARS: same sentence, bounded; "$4.99" is not a sentence end
+NOT_GOVERNED = `(?<!\b(?:never|not|don['’]t|won['’]t|can['’]t|cannot)\b(?:\s+(?:ever|ask|you|to|will|...)){0,4}\s+)`
+               // NEGATION_WORDS + NEGATION_HELPER_WORDS, at most NEGATION_GOVERNED_MAX_WORDS helpers
 MONEY       = `(?:(?:\$|£|€|\b(?:us\$|usd|gbp|eur)\s{0,3})\d[\d,.]{0,15}\s{0,3}(?:million|billion)\b`
             + `|\b\d[\d,.]{0,15}\s{0,3}(?:million|billion)\s+(?:dollars|pounds|euros)\b)`
 ```
 
-Every gap is a negated class with an explicit upper bound, so each start position does a bounded amount of work and matching is linear in the input length. Stopping at `.`, `!`, `?` and line breaks keeps the verb and the term in the same sentence, so "Please confirm your appointment. We accept every credit card." does not fire. The negation lookbehind is also bounded.
+Every gap is a negated class with an explicit upper bound, so each start position does a bounded amount of work and matching is linear in the input length. Stopping at `.`, `!`, `?` and line breaks keeps the verb and the term in the same sentence, so "Please confirm your appointment. We accept every credit card." does not fire. The two NEAR alternatives never match the same character, so it stays linear. The negation lookbehind is bounded too, and only matches when the negation directly governs the verb: "We will never ask you to share your card number" is skipped, "Do not delay, enter your card number" is not (the comma and "delay" break the chain).
+
+**Negated request spans.** `NEGATION + helpers{0,4} + (request or share verb) + up to 60 characters of the same sentence` marks a warning clause. Credential words that start inside such a clause ("Do not share your PIN", "never ask you to share your card number, PIN or password") do not count for `credential-request`.
+
+**Pairing across sentences.** `code-sharing-request` (code mention, then "forward it to us" within 100 characters) and `mistaken-payment` (claim, then return request within 200 characters) match the two parts separately and pair them in one forward pass over the two sorted match lists, so no regex spans more than one bounded gap.
 
 #### prize-lottery (weight `W_PRIZE_LOTTERY` = 25)
 
@@ -489,12 +517,15 @@ Three patterns; the earliest match is the evidence and every match is a `CursedP
 
 1. `PRIZE_PHRASES`: "you have won", "you've won", "you are the winner", "you're the winner", "lucky winner", "claim your prize", "lottery", "jackpot", "free gift".
 2. `\b(?:congratulations|congrats)\b(?=[\s\S]{0,60}?\b(?:won|winner|selected|prize|lottery|jackpot)\b)`. The lookahead keeps the cursed phrase to the greeting itself. "Congratulations on your new job!" does not fire.
-3. `MONEY`: a large amount with a currency marker ("$1 million", "USD 2.5 billion", "5 million dollars"). "2 million residents" does not fire.
+3. `MONEY`: a large amount with a currency marker ("$1 million", "USD 2.5 billion", "5 million dollars"), or the same written in digits with at least two ",000" groups ("$1,000,000", "USD 15,500,000"). "2 million residents" and "1,000,000 reasons" do not fire.
+4. Easy-money promises (also in `PRIZE_PHRASES`): "claim your free/reward", "you have been chosen", "guaranteed returns/profit/income/loan/approval", "zero risk", "risk-free", "double your money", "no experience needed/required", and `\b\d{2,4}\s?%\s+(?:returns?|profits?|gains)\b` ("400% returns"; "4% interest" does not fire).
 
 #### advance-fee-scheme (weight `W_ADVANCE_FEE_SCHEME` = 25)
 
 1. `ADVANCE_FEE_PHRASES`: "inheritance", "unclaimed funds", "unclaimed fund", "unclaimed money", "beneficiary", "processing fee", "release fee", "clearance fee", "pay a small fee to receive".
 2. `\btransfer\s+of\s+(?:the\s+sum\s+of\s+)?` + `MONEY` ("transfer of $4.5 million").
+3. More phrases: "next of kin", "dormant account", "unclaimed deposit/estate/assets", "release the funds", "funds are/will be released", "redelivery fee", "customs fee/charge", "clearance/release charge", "activation fee", "upfront fee".
+4. A fee as a condition (`ADVANCE_FEE_TERMS` = fee, charge, cost, deposit, duty): "unpaid/outstanding/overdue ... FEE", "FEE ... is/are required/outstanding/pending/unpaid", "just/only/simply pay/cover/send/settle ... FEE", "small ... FEE", "FEE ... to receive/release/redeliver/reschedule/unlock/activate/claim/process/dispatch", "FEE ... before ... released/delivered/dispatched/processed/activated/transferred", "FEE ... upfront/up front/in advance". Each gap is bounded (30-40 characters, same sentence). A bare fee ("Delivery fee: $3.99", "Send the delivery fee through your mobile wallet") does not fire.
 
 #### financial-info-request (weight `W_FINANCIAL_INFO_REQUEST` = 30)
 
@@ -504,21 +535,44 @@ NOT_NEGATED + \b(?:enter|provide|send|share|confirm|verify|update|reply\s+with|g
      bank\s+account|bank\s+details|account\s+number|routing\s+number|ssn|social\s+security)\b
 ```
 
-The request verb must come first; a term alone ("Thanks for paying by credit card") never fires. A verb within 30 characters after a negation is skipped, so a bank's warning "We will never ask you to share your card number" does not fire. The evidence is the whole span, e.g. `Enter your credit card`.
+The same regex also accepts the reverse order, `TERM + NEAR + NOT_GOVERNED + VERB` ("Card number and CVV: send them now"), still within one sentence and 60 characters. A term alone ("Thanks for paying by credit card") never fires. A verb directly governed by a negation is skipped, so a bank's warning "We will never ask you to share your card number" does not fire. The evidence is the whole span, e.g. `Enter your credit card`.
 
 #### unusual-payment-method (weight `W_UNUSUAL_PAYMENT_METHOD` = 20)
 
 ```js
-NOT_NEGATED + \b(?:pay|paying|payment|send|sending|transfer|buy|buying)\b + NEAR +
+NOT_GOVERNED + \b(?:pay|paying|payment|send|sending|transfer|buy|buying|purchase|pick\s+up|get|deposit|settle|return)\b + NEAR +
 \b(?:gift\s+card|giftcard|itunes\s+card|itunes\s+gift\s+card|google\s+play\s+card|google\s+play\s+gift\s+card|
-     bitcoin|btc|crypto|cryptocurrency|usdt|wire\s+transfer|western\s+union|moneygram)s?\b
+     bitcoin|btc|crypto|cryptocurrency|usdt|usdc|ethereum|wire\s+transfer|western\s+union|moneygram)s?\b
 ```
 
-A mobile wallet is an ordinary way to pay, so it only counts when a fee is part of the request: `PAYMENT_VERB + NEAR + (WALLET + NEAR + FEE | FEE + NEAR + WALLET)`, where `WALLET` is `mobile wallet|mobile money|e-wallet|ewallet` and `FEE` is `fees?`.
+A mobile wallet is an ordinary way to pay, so it only counts when a fee is part of the request: `PAYMENT_VERB + NEAR + (WALLET + NEAR + FEE | FEE + NEAR + WALLET)`, where `WALLET` is `mobile wallet|mobile money|e-wallet|ewallet` and `FEE` is `fees?`. "wire the money/funds/payment/amount" also fires.
+
+The detector also returns `paymentInstruction` (not a signal): `NOT_GOVERNED + (send|pay|transfer|wire|deposit) + up to 40 chars + to (me|us|my|our|this|the following|the name|the account|the wallet|the address)`, or `(send|give|read|text) (me|us) [the|a] [word] (code|number|pin|picture|photo)s?`. `blend` uses it for floor 4.12.
 
 #### secrecy-pressure (weight `W_SECRECY_PRESSURE` = 10)
 
-`SECRECY_PHRASES`: "do not tell anyone", "don't tell anyone", "do not tell anybody", "don't tell anybody", "keep this confidential", "keep this secret", "keep this between us", "keep it confidential", "keep it secret", "do not share this with anyone", "don't share this with anyone", "do not discuss this with anyone".
+`SECRECY_PHRASES`: "do not tell anyone", "don't tell anyone", "do not tell anybody", "don't tell anybody", "keep this confidential", "keep this secret", "keep this between us", "keep it confidential", "keep it secret", "do not share this with anyone", "don't share this with anyone", "do not discuss this with anyone". Also `(do not|don't|please don't|please do not) (tell|discuss this with|discuss it with|mention this to|mention it to) (your family|your kids|your children|your parents|your bank|your husband|your wife|your partner|your friends|family|mom|dad|mum)`.
+
+#### code-sharing-request (weight `W_CODE_SHARING_REQUEST` = 30)
+
+1. `NOT_GOVERNED + (reply with|send|share|forward|tell|give|read|text) + NEAR + CODE`, where `CODE` is `CODE_TERMS` (verification/security/confirmation/login/sign-in/access/SMS code, one-time code/password/passcode, passcode) or `\d{1,2}[- ]digit [word] code`.
+2. A `CODE` mention followed within `CODE_PRONOUN_PROXIMITY_CHARS` (100, may cross a sentence end) by `NOT_GOVERNED + share verb + (it|this|that|them) [back] to (us|me)`. The evidence is the hand-over phrase.
+
+"Enter the code" never fires (that is how real one-time codes are used). "OTP" is left to `credential-request` so "Send the OTP" is not counted twice.
+
+#### mistaken-payment (weight `W_MISTAKEN_PAYMENT` = 25)
+
+A claim (`(accidentally|mistakenly|wrongly) (sent|transferred|paid|credited|deposited)`, `(sent|...) + NEAR + (by mistake|by accident|in error|accidentally|mistakenly)`, `duplicate payment`, `overpaid`, `overpayment`) followed within `MISTAKE_PROXIMITY_CHARS` (200) by a governed-negation-free return request (`RETURN_REQUESTS`: "send it back", "send the money back", "return the excess/amount/difference/money", "refund it", "refund the", "pay it back", "transfer it back", "transfer it to"). Both parts become cursed phrases; the claim is the evidence.
+
+#### remote-access-request (weight `W_REMOTE_ACCESS_REQUEST` = 25)
+
+`NOT_GOVERNED + (install|download|run|open) + NEAR + (remote|screen-sharing) + up to 30 chars + (tool|app|application|software|program)`, or `(give|grant|allow) + NEAR + [remote] (access|control) (to|of) your (computer|pc|device|laptop|phone|screen)`, or `remote (access|control) (to|of) your (...)`. No floor: with a virus alarm (`urgency-en`) it reaches 40.
+
+#### urgency-en phrase families
+
+Besides `URGENCY_EN_PHRASES` (10 phrases, unchanged): `URGENCY_EXTRA_PHRASES` ("urgent", "urgently", "final notice", "final warning", "pay now", "security breach", "virus(es) detected", "infected with", "or it will be returned/deleted/closed"); "to avoid" + `URGENCY_AVOID_THREATS`; `LOCKABLE_THINGS` [one word] `LOCK_STATE_VERBS` `LOCKED_WORDS` and `LOCKED_WORDS your LOCKABLE_THINGS`; `DEVICE_WORDS (has been|have been|is|was|may be) (infected|hacked|compromised)`; `within [the next] \d{1,3} (hours|hour|hrs|minutes|mins)`; `only \d{1,3} (spots|places|slots|seats) (left|remaining)`; `IMMEDIACY_VERBS + up to 40 chars (same sentence) + (immediately|right away|asap)`.
+
+`credential-request` now also matches "passwords".
 
 ---
 
@@ -554,11 +608,14 @@ Every `RedFlag.explanation` is non-empty, jargon-free, and says what was found a
 | urgency-en | The message pressures you to act quickly ("{e}"). Scammers rush people so they do not stop to check. |
 | credential-request | The message asks for a password, PIN or one-time code ("{e}"). Real companies do not ask for these in messages. |
 | suspicious-attachment | The message mentions a file called "{e}", a type of file that can install harmful programs. Do not open it unless you are sure who sent it. |
-| prize-lottery | The message says you have won a prize or a large sum of money ("{e}"). Scammers promise prizes so you hand over money or personal details. You cannot win a draw you never entered. |
-| advance-fee-scheme | The message talks about an inheritance, unclaimed money or a fee you must pay to receive funds ("{e}"). This is a well-known scam: you pay the fee and the promised money never arrives. |
+| prize-lottery | The message says you have won a prize or a large sum of money, or promises guaranteed or easy money ("{e}"). Scammers promise prizes and big returns so you hand over money or personal details. You cannot win a draw you never entered. |
+| advance-fee-scheme | The message talks about an inheritance, unclaimed money, or a fee you must pay first to receive money, a parcel, a loan or a job ("{e}"). This is a well-known scam: you pay the fee and the promised thing never arrives. |
 | financial-info-request | The message asks you to give your card or bank details ("{e}"). Real banks and shops do not ask for these in a message, and anyone who has them can take your money. |
 | unusual-payment-method | The message asks you to pay with gift cards, cryptocurrency or a money-transfer service ("{e}"). Scammers ask for these because the money is hard to trace and almost never comes back. |
 | secrecy-pressure | The message tells you to keep it secret ("{e}"). Scammers do this so nobody you trust can warn you. |
+| code-sharing-request | The message asks you to pass on a code that was sent to you ("{e}"). That code is the key to your account: whoever has it can sign in as you or approve payments. |
+| mistaken-payment | The message says money was sent to you by mistake and asks you to send it back ("{e}"). This is a common trick: the first payment is fake or gets reversed, and the money you send is lost. |
+| remote-access-request | The message asks you to install a remote-control program or give someone access to your device ("{e}"). Whoever controls your device can see your screen, your passwords and your bank. |
 
 Cursed-phrase reasons (`CURSED_PHRASE_REASONS`):
 
@@ -566,11 +623,14 @@ Cursed-phrase reasons (`CURSED_PHRASE_REASONS`):
 |---|---|
 | urgency-en | This phrase tries to rush you. Scammers rush people so they do not stop to check. |
 | credential-request | This asks for a password, PIN or one-time code. Real companies do not ask for these in messages. |
-| prize-lottery | This promises a prize or a big sum of money. Scammers use fake prizes as bait. |
-| advance-fee-scheme | This talks about money waiting for you or a fee to release it. The fee is the scam. |
+| prize-lottery | This promises a prize, a big sum of money or guaranteed income. Scammers use these as bait. |
+| advance-fee-scheme | This talks about money or goods waiting for you, or a fee to release them. The fee is the scam. |
 | financial-info-request | This asks for card or bank details. Real companies do not ask for these in messages. |
 | unusual-payment-method | This asks for payment that is hard to trace or get back, such as gift cards or cryptocurrency. |
 | secrecy-pressure | This asks you to keep a secret, so nobody can warn you it is a scam. |
+| code-sharing-request | This asks you to pass on a code sent to you. Never give these codes to anyone. |
+| mistaken-payment | This claims money was sent to you by mistake and asks for it back. The first payment is usually fake. |
+| remote-access-request | This asks for control of your device. Never let a stranger connect to it. |
 
 ---
 
@@ -612,13 +672,13 @@ Cursed-phrase reasons (`CURSED_PHRASE_REASONS`):
 
 **P17: blend determinism and representation independence.** Two identical calls return the same value, and passing flags as an Array or as a Set returns the same value. *Validates 11.5.*
 
-**P18: Hard floors.** For any valid blend inputs: `typosquatting` + `credential-request` gives >= 70; `raw-ip-url` + `credential-request` gives >= 70; (`spf-fail` or `dkim-fail`) + `display-name-mismatch` gives >= 60; `credential-request` + `urgency-en` gives >= 55; `suspicious-attachment` gives >= 40; (`prize-lottery` or `advance-fee-scheme`) + (`financial-info-request` or `unusual-payment-method`) gives >= 70; `financial-info-request` gives >= 50; `unusual-payment-method` gives >= 40. *Validates 4.5-4.12.*
+**P18: Hard floors.** For any valid blend inputs: `typosquatting` + `credential-request` gives >= 70; `raw-ip-url` + `credential-request` gives >= 70; (`spf-fail` or `dkim-fail`) + `display-name-mismatch` gives >= 60; `credential-request` + `urgency-en` gives >= 55; `suspicious-attachment` gives >= 40; (`prize-lottery` or `advance-fee-scheme`) + (`financial-info-request` or `unusual-payment-method`) gives >= 70; `financial-info-request` gives >= 50; `unusual-payment-method` + (`urgency-en` or `secrecy-pressure`) gives >= 40; `code-sharing-request` gives >= 50; `mistaken-payment` gives >= 40. *Validates 4.5-4.12, 4.14, 4.15.* (The 4.12 case with `context.paymentInstruction` and the "alone has no floor" case are unit tests in `blend.test.js`.)
 
 **P19: verdictFor exhaustiveness.** For every integer 0-100 the result is exactly one of the three strings, with 0-30 `pookie`, 31-69 `skeptical`, 70-100 `poltergeist`. *Validates 5.1-5.4, 11.6.*
 
 **P20: Robustness (ReDoS).** For arbitrary strings of length <= 4000, and for adversarial strings built from repeated fragments (`"a."`, `"<a "`, `"["`, `"http://"`, `"From: "`, `"-"`, long runs of one character, and repeated request verbs, payment verbs, negations, money fragments and "congratulations" for the content proximity patterns), `score` does not throw and returns within a generous time bound (500 ms per call; measured worst case is about 2 ms at 4000 characters). A fixed list of hand-built worst cases for every bounded-gap regex runs in the same test. *Validates 2.20.*
 
-**P21: Scam signals.** For text built from scam and near-miss fragments (prize claims, card-detail requests, warnings that say "never share", gift-card and wallet payments, secrecy phrases), `score` returns an integer in [0, 100], is deterministic, and meets floors 4.10-4.12 whenever the matching flags fired. *Validates 2.15-2.19, 4.10-4.12.*
+**P21: Scam signals.** For text built from scam and near-miss fragments (prize claims, card-detail requests, warnings that say "never share", gift-card and wallet payments, secrecy phrases), `score` returns an integer in [0, 100], is deterministic, and meets floors 4.10, 4.11, 4.14 and 4.15 whenever the matching flags fired, and 4.12 whenever `unusual-payment-method` fired together with a pressure signal. *Validates 2.15-2.19, 2.22, 2.23, 4.10-4.12, 4.14, 4.15.*
 
 ---
 
@@ -695,7 +755,7 @@ Arbitraries:
 - `l1Score`: `fc.integer({ min: 0, max: 100 })`
 - `l2Hit`: `fc.boolean()`
 - `l3Score`: `fc.oneof(fc.constant(null), fc.integer({ min: 0, max: 100 }))`
-- `flags`: `fc.array(fc.constantFrom(...ALL_SIGNAL_IDS))` (17 ids), passed as an Array or wrapped in a `Set` (`fc.boolean()` chooses)
+- `flags`: `fc.array(fc.constantFrom(...ALL_SIGNAL_IDS))` (20 ids), passed as an Array or wrapped in a `Set` (`fc.boolean()` chooses)
 - invalid `l3Score`: `fc.oneof(fc.constant(NaN), fc.constant(Infinity), fc.constant(-Infinity), fc.double(), fc.integer({ max: -1 }), fc.integer({ min: 101 }), fc.string())`
 - non-string input: `fc.oneof(fc.integer(), fc.boolean(), fc.constant(null), fc.constant(undefined), fc.array(fc.anything()), fc.object())`
 - text input: `fc.string({ maxLength: 4000 })`, plus `fc.array(fc.constantFrom("a.", "<a ", "[", "http://", "From: ", "-", "xn--", " ")).map(a => a.join("")).filter(s => s.length <= 4000)` for P20

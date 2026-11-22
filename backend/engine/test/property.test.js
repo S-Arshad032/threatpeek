@@ -15,6 +15,9 @@ const PHRASE_SIGNALS = new Set([
   "financial-info-request",
   "unusual-payment-method",
   "secrecy-pressure",
+  "code-sharing-request",
+  "mistaken-payment",
+  "remote-access-request",
 ]);
 const SAFETY_CLAIM_RE = /\b(safe|risk-free)\b/i;
 const TIME_LIMIT_MS = 500;
@@ -308,7 +311,10 @@ describe("scam signal properties", () => {
         expect(r.riskScore).toBeGreaterThanOrEqual(70);
       }
       if (ids.has("financial-info-request")) expect(r.riskScore).toBeGreaterThanOrEqual(50);
-      if (ids.has("unusual-payment-method")) expect(r.riskScore).toBeGreaterThanOrEqual(40);
+      const pressure = ["urgency-en", "secrecy-pressure", "prize-lottery", "advance-fee-scheme"].some((id) => ids.has(id));
+      if (ids.has("unusual-payment-method") && pressure) expect(r.riskScore).toBeGreaterThanOrEqual(40);
+      if (ids.has("code-sharing-request")) expect(r.riskScore).toBeGreaterThanOrEqual(50);
+      if (ids.has("mistaken-payment")) expect(r.riskScore).toBeGreaterThanOrEqual(40);
     }));
   });
 });
@@ -371,7 +377,10 @@ describe("blend and verdictFor properties", () => {
       [["advance-fee-scheme", "financial-info-request"], 70],
       [["advance-fee-scheme", "unusual-payment-method"], 70],
       [["financial-info-request"], 50],
-      [["unusual-payment-method"], 40],
+      [["unusual-payment-method", "urgency-en"], 40],
+      [["unusual-payment-method", "secrecy-pressure"], 40],
+      [["code-sharing-request"], 50],
+      [["mistaken-payment"], 40],
     ];
     run(fc.property(l1Arb, l2Arb, l3Arb, flagListArb, fc.constantFrom(...floors), (l1, l2, l3, extra, [required, min]) => {
       expect(blend(l1, l2, l3, [...extra, ...required])).toBeGreaterThanOrEqual(min);

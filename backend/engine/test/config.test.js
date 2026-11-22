@@ -9,11 +9,14 @@ const PHRASE_SIGNALS = [
   "financial-info-request",
   "unusual-payment-method",
   "secrecy-pressure",
+  "code-sharing-request",
+  "mistaken-payment",
+  "remote-access-request",
 ];
 
 describe("config", () => {
   it("has an explanation template and category for every signal id", () => {
-    expect(C.ALL_SIGNAL_IDS).toHaveLength(17);
+    expect(C.ALL_SIGNAL_IDS).toHaveLength(20);
     for (const id of C.ALL_SIGNAL_IDS) {
       expect(typeof C.EXPLANATION_TEMPLATES[id]).toBe("string");
       expect(C.EXPLANATION_TEMPLATES[id].length).toBeGreaterThan(0);

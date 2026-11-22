@@ -11,7 +11,8 @@
     "src"
   ],
   "scripts": {
-    "test": "vitest --run"
+    "test": "vitest --run",
+    "benchmark": "node benchmark/run.js"
   },
   "license": "MIT",
   "devDependencies": {

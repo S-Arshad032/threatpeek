@@ -93,9 +93,9 @@ export const poltergeist = Object.freeze({
     {
       id: 'urgency-en',
       weight: 15,
-      evidence: 'account will be suspended',
+      evidence: 'URGENT',
       explanation:
-        'The message pressures you to act quickly ("account will be suspended"). Scammers rush people so they do not stop to check.',
+        'The message pressures you to act quickly ("URGENT"). Scammers rush people so they do not stop to check.',
     },
     {
       id: 'credential-request',
@@ -106,6 +106,10 @@ export const poltergeist = Object.freeze({
     },
   ],
   cursedPhrases: [
+    {
+      text: 'URGENT',
+      reason: 'This phrase tries to rush you. Scammers rush people so they do not stop to check.',
+    },
     {
       text: 'account will be suspended',
       reason: 'This phrase tries to rush you. Scammers rush people so they do not stop to check.',

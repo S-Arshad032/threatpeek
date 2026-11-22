@@ -16,7 +16,7 @@ ThreatPeek checks a message in three layers. Only the first one is needed. The a
 
 | Layer | What it does | Where it runs | Default |
 |---|---|---|---|
-| **1. Rules engine** | Checks 17 warning signals in English text and gives a score with an explanation for each signal found | In your browser | Always on |
+| **1. Rules engine** | Checks 20 warning signals in English text and gives a score with an explanation for each signal found | In your browser | Always on |
 | **2. Google Safe Browsing** | Follows shortened or redirecting links, then asks Google if a link is on its list of known bad sites | Through our server | Off unless a key is set |
 | **3. AI second opinion** | Asks an AI model (through OpenRouter) to rate the message | Through our server | Off |
 
@@ -25,13 +25,14 @@ ThreatPeek checks a message in three layers. Only the first one is needed. The a
 - Plain JavaScript with no dependencies, no network calls and no browser or Node.js APIs. The browser and the server share the same code ([backend/engine](backend/engine)).
 - **Deterministic:** the same text always gives the same result.
 - **Explainable:** every point of the score comes from a named signal, and each signal comes with the text that triggered it and a plain-English explanation.
-- **17 signals in 4 groups** (English text only):
+- **20 signals in 4 groups** (English text only):
   - **Identity:** look-alike domains (typosquatting), disguised letters (homograph / punycode), and sender names that don't match the address.
   - **Email auth headers:** SPF, DKIM or DMARC failures, if headers are pasted.
   - **Links:** links to a bare IP address, risky domain endings, and link text that points somewhere else.
-  - **Content:** urgency, requests for passwords or codes, risky attachments, prize and lottery bait, inheritance and advance-fee stories, requests for card or bank details, payment by gift card, crypto or money transfer, and requests to keep the message secret.
+  - **Content:** urgency, requests for passwords or codes, risky attachments, prize and lottery bait (including "guaranteed returns"), inheritance and advance-fee stories (including "pay a small fee to release your parcel"), requests for card or bank details, payment by gift card, crypto or money transfer, requests to keep the message secret, requests to pass on a one-time code, "I sent you money by mistake, please send it back", and requests for remote access to your device.
+- **Sees through simple disguises:** before the content checks, the text is normalized (Unicode, upper/lower case, hidden zero-width characters, l33t spellings like "p@ssw0rd", and s p a c e d - o u t letters). The red-flag cards still quote your original text.
 - **Caps:** each group has a maximum (identity/auth 40, links 35, content 45), so one kind of signal cannot take over the score.
-- **Floors:** dangerous combinations get a minimum score. For example, a look-alike domain plus a password request always scores at least 70, and so does a prize or inheritance story combined with a request for card details or gift-card payment. A request for card or bank details on its own scores at least 50.
+- **Floors:** dangerous combinations get a minimum score. For example, a look-alike domain plus a password request always scores at least 70, and so does a prize or inheritance story combined with a request for card details or gift-card payment. A request for card or bank details, or a request to pass on a one-time code, scores at least 50 on its own. A gift-card or crypto payment scores at least 40 only when it comes with pressure (urgency, secrecy, a prize or a fee) or an instruction to send it somewhere, so "Buy a gift card for your mom" stays low.
 - The score maps to the ghost: 0–30 Pookie, 31–69 Skeptical, 70–100 Poltergeist.
 
 Weights, caps, floors and word lists are all in [backend/engine/src/config.js](backend/engine/src/config.js).
@@ -49,6 +50,20 @@ The server ([backend/server](backend/server)) adds three endpoints:
 The engine combines these results with its own score. The AI can raise or lower the score, but the result never drops below 80% of the engine's score. Every layer fails quietly. If a key is missing, a call times out or the daily AI budget is used up, the app falls back to the engine-only result. The result then says "Heuristics only. No AI check was run."
 
 The live demo currently runs with Safe Browsing and AI both off. The current UI always sends `useAI: false`, so the AI layer is ready on the server, but users cannot turn it on yet.
+
+## How well does it work?
+
+We measured the rules engine alone (no AI, no Safe Browsing) on two labelled sets of messages in [backend/engine/benchmark](backend/engine/benchmark). We tuned the rules on the 60-message dev set. Then we ran the separate 40-message held-out set once, without tuning on it afterwards. Its numbers are the honest ones:
+
+| Held-out set (20 scams, 20 normal messages) | Before tuning | After tuning |
+|---|---|---|
+| Scams flagged (score 31 or more) | 30% (6/20) | **65% (13/20)** |
+| Scams scored high risk (70 or more) | 10% (2/20) | 15% (3/20) |
+| Normal messages wrongly flagged | 5% (1/20) | **0% (0/20)** |
+
+On the dev set the rules flag 93% of scams with no false alarms. That number is higher because the rules were tuned on it. The held-out set shows how the rules do on wording they were not tuned on. The held-out misses include both advance-fee scams, and the card-detail, job-offer and tech-support scams, all worded in ways the rules had not seen. Most scams that are caught land in Skeptical, not Poltergeist.
+
+These are small, synthetic, English-only test sets that we wrote ourselves, with fictional brands. They are not a guarantee of how ThreatPeek does on real messages. Measured on 23 November 2026. Run `npm run benchmark -- --set=heldout` in `backend/engine` to reproduce; full results are in [RESULTS.md](backend/engine/benchmark/RESULTS.md).
 
 ## Safety and honesty
 
@@ -140,10 +155,10 @@ npm test    # engine, server and frontend
 
 | Package | Test files | Tests | What they cover |
 |---|---|---|---|
-| `backend/engine` | 13 | 173 | Unit tests per module, 13 golden tests, fast-check property tests |
+| `backend/engine` | 16 | 235 | Unit tests per module, 13 golden tests, fast-check property tests, normalization tests, a dev-set benchmark check |
 | `backend/server` | 8 | 208 | Endpoints, SSRF guard and IP ranges, env loading, cache; no network needed |
 | `frontend` | 1 | 4 | The `api.js` adapter in mock mode |
-| **Total** | **22** | **385** | |
+| **Total** | **25** | **447** | |
 
 ## How we built it
 
