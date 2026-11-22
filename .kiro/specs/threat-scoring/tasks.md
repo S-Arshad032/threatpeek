@@ -17,22 +17,22 @@ Each task creates or modifies exactly one source file or one test file. No task 
 
 - [x] 1. `backend/engine/src/config.js`
   - Export all named numeric and word-list constants; no imports from within the package
-  - Signal weights: `W_TYPOSQUATTING=35`, `W_HOMOGRAPH_PUNYCODE=35`, `W_RAW_IP_URL=35`, `W_RISKY_TLD=15`, `W_DISPLAY_NAME_MISMATCH=25`, `W_LINK_TEXT_MISMATCH=35`, `W_URGENCY_EN=15`, `W_URGENCY_BN=15`, `W_CREDENTIAL_REQUEST=20`, `W_SUSPICIOUS_ATTACHMENT=20`, `W_SPF_FAIL=20`, `W_DKIM_FAIL=20`, `W_DMARC_FAIL=15`
+  - Signal weights: `W_TYPOSQUATTING=35`, `W_HOMOGRAPH_PUNYCODE=35`, `W_RAW_IP_URL=35`, `W_RISKY_TLD=15`, `W_DISPLAY_NAME_MISMATCH=25`, `W_LINK_TEXT_MISMATCH=35`, `W_URGENCY_EN=15`, `W_CREDENTIAL_REQUEST=20`, `W_SUSPICIOUS_ATTACHMENT=20`, `W_SPF_FAIL=20`, `W_DKIM_FAIL=20`, `W_DMARC_FAIL=15`, `W_PRIZE_LOTTERY=25`, `W_ADVANCE_FEE_SCHEME=25`, `W_FINANCIAL_INFO_REQUEST=30`, `W_UNUSUAL_PAYMENT_METHOD=20`, `W_SECRECY_PRESSURE=10`
   - Category caps: `CAP_IDENTITY_AUTH=40`, `CAP_LINK=35`, `CAP_CONTENT=45`
   - Verdict thresholds: `VERDICT_POOKIE_MAX=30`, `VERDICT_SKEPTICAL_MAX=69`
-  - Hard floors: `FLOOR_TYPOSQUAT_CRED=70`, `FLOOR_RAWIP_CRED=70`, `FLOOR_AUTH_DISPLAY=60`, `FLOOR_CRED_URGENCY=55`, `FLOOR_ATTACHMENT=40`
+  - Hard floors: `FLOOR_TYPOSQUAT_CRED=70`, `FLOOR_RAWIP_CRED=70`, `FLOOR_AUTH_DISPLAY=60`, `FLOOR_CRED_URGENCY=55`, `FLOOR_ATTACHMENT=40`, `FLOOR_PRIZE_PAYMENT=70`, `FLOOR_FINANCIAL_INFO=50`, `FLOOR_UNUSUAL_PAYMENT=40`
   - Blend coefficients: `BLEND_L1_WEIGHT=0.55`, `BLEND_L3_WEIGHT=0.45`, `BLEND_L1_FLOOR_FACTOR=0.8`, `BLEND_L2_FLOOR=90`
   - Limits: `MAX_INPUT_LENGTH=4000`, `MAX_HOSTNAMES_SCANNED=50`, `MAX_CURSED_PHRASES=20`
   - Typosquatting tuning: `TYPO_SHORT_NAME_MAX_LEN=6`, `TYPO_MAX_DISTANCE_SHORT=1`, `TYPO_MAX_DISTANCE_LONG=2`, `TYPO_MIN_FUZZY_LEN=4`, `TYPO_CONTAINS_MIN_LEN=6`
-  - `SIGNAL_CATEGORY` map: typosquatting→identity-auth, homograph-punycode→identity-auth, display-name-mismatch→identity-auth, spf-fail→identity-auth, dkim-fail→identity-auth, dmarc-fail→identity-auth, raw-ip-url→link, risky-tld→link, link-text-mismatch→link, urgency-en→content, urgency-bn→content, credential-request→content, suspicious-attachment→content
+  - `SIGNAL_CATEGORY` map: typosquatting→identity-auth, homograph-punycode→identity-auth, display-name-mismatch→identity-auth, spf-fail→identity-auth, dkim-fail→identity-auth, dmarc-fail→identity-auth, raw-ip-url→link, risky-tld→link, link-text-mismatch→link, urgency-en→content, credential-request→content, suspicious-attachment→content, prize-lottery→content, advance-fee-scheme→content, financial-info-request→content, unusual-payment-method→content, secrecy-pressure→content
   - `RISKY_TLDS = ["xyz", "top", "click", "tk", "ml", "ga", "cf"]`
   - `DANGEROUS_EXTENSIONS = ["exe", "scr", "vbs", "bat", "cmd", "js", "lnk", "iso", "img"]`
   - `JS_LIBRARY_ALLOWLIST = ["node", "react", "vue", "next", "nuxt", "express", "angular", "d3", "three"]`
   - `SECOND_LEVEL_LABELS = ["com", "co", "org", "net", "gov", "edu", "ac"]`
   - `URGENCY_EN_PHRASES = ["act now", "verify immediately", "account will be suspended", "account has been suspended", "account suspended", "confirm your details", "limited time", "expires today", "click here immediately", "immediate action required"]`
-  - `URGENCY_BN_PHRASES = ["আপনার অ্যাকাউন্ট স্থগিত হবে", "এখনই যাচাই করুন", "অবিলম্বে যাচাই", "এখনই সাড়া দিন", "অ্যাকাউন্ট বন্ধ হয়ে যাবে"]`
+  - Scam-signal word lists and proximity windows (see task 16 and the design content.js section)
   - No other module may use an inline literal for any of these values
-  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 2.14, 2.15, 4.1–4.10, 5.2–5.4, 6.1–6.2, 12.1_
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 2.13, 2.14, 2.15, 2.16, 2.17, 2.18, 2.19, 4.1–4.13, 5.2–5.4, 6.1–6.2, 12.1_
 
 - [x] 2. `backend/engine/src/brands.js`
   - Export `DEFAULT_BRANDS` as a `BrandEntry[]` with only fictional brands and reserved TLDs: galactibank / galactibank.example, orbitins / orbitins.test, nexamail / nexamail.example, vaultpay / vaultpay.example, trustledger / trustledger.test
@@ -74,7 +74,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - "https://login.galactibank.example" → no `typosquatting` (legitimate subdomain)
     - "visit galactibank.example" → no `typosquatting` (legitimate domain)
     - "visit gаlactibank.example" (Cyrillic а U+0430) → `homograph-punycode` fires
-    - "visit গালাক্তিব্যাংক.example" (pure Bangla hostname) → no `homograph-punycode`
+    - "visit галактибанк.example" (pure Cyrillic hostname) → no `homograph-punycode`
     - "visit xn--galctibnk-r8a.example" → `homograph-punycode` fires
     - "From: Galactibank Support <noreply@phish.invalid>" → `display-name-mismatch` fires
     - Every emitted `RedFlag` has a non-empty `explanation`
@@ -106,15 +106,14 @@ Each task creates or modifies exactly one source file or one test file. No task 
 - [x] 7. Content detector
   - [x] 7.1 Implement `backend/engine/src/detectors/content.js`
     - Implement `detectContent(input)` returning `{ flags: RedFlag[], cursedPhrases: CursedPhrase[] }`
-    - Four signals: `urgency-en` (15), `urgency-bn` (15), `credential-request` (20), `suspicious-attachment` (20)
+    - Original signals: `urgency-en` (15), `credential-request` (20), `suspicious-attachment` (20); the five scam signals are added in task 16
     - One `RedFlag` per signal; evidence is the first match; explanations from design table
     - `urgency-en`: regex built from `URGENCY_EN_PHRASES` (regex-escaped, `|`-joined, single spaces → `\s+`, `gi` + `\b`); each match → `CursedPhrase`
-    - `urgency-bn`: regex built from `URGENCY_BN_PHRASES` (regex-escaped, `|`-joined, `\s+`, `u` flag, no `\b`); each match → `CursedPhrase`
-    - `credential-request`: case-insensitive pass + case-sensitive pass for PIN/OTP + Bangla terms; each match → `CursedPhrase`
+    - `credential-request`: case-insensitive pass + case-sensitive pass for PIN/OTP; each match → `CursedPhrase`
     - `suspicious-attachment`: pattern from design; `JS_LIBRARY_ALLOWLIST` skips `.js` allowlisted names; evidence = first filename; no `CursedPhrase`
     - `CursedPhrase` entries de-duplicated by lowercase text; capped at `MAX_CURSED_PHRASES`
     - Imports: `config.js` only
-    - _Requirements: 2.9, 2.10, 2.11, 2.12, 3.1, 3.2, 3.3, 3.4, 7.1, 7.2, 7.3_
+    - _Requirements: 2.9, 2.10, 2.11, 3.1, 3.2, 3.3, 3.4, 7.1, 7.2, 7.3_
 
   - [x]* 7.2 Unit tests for `content.js`
     - Input with 3 distinct urgency-en phrases → one `urgency-en` `RedFlag` + 3 `CursedPhrase` entries
@@ -158,9 +157,12 @@ Each task creates or modifies exactly one source file or one test file. No task 
     - Rule 4.5: typosquatting + credential-request → `max(risk, FLOOR_TYPOSQUAT_CRED)`
     - Rule 4.6: raw-ip-url + credential-request → `max(risk, FLOOR_RAWIP_CRED)`
     - Rule 4.7: (spf-fail ∨ dkim-fail) + display-name-mismatch → `max(risk, FLOOR_AUTH_DISPLAY)`
-    - Rule 4.8: credential-request + (urgency-en ∨ urgency-bn) → `max(risk, FLOOR_CRED_URGENCY)`
+    - Rule 4.8: credential-request + urgency-en → `max(risk, FLOOR_CRED_URGENCY)`
     - Rule 4.9: suspicious-attachment → `max(risk, FLOOR_ATTACHMENT)`
-    - Rule 4.10: `Math.round(Math.min(100, Math.max(0, risk)))`
+    - Rule 4.10: (prize-lottery ∨ advance-fee-scheme) + (financial-info-request ∨ unusual-payment-method) → `max(risk, FLOOR_PRIZE_PAYMENT)`
+    - Rule 4.11: financial-info-request → `max(risk, FLOOR_FINANCIAL_INFO)`
+    - Rule 4.12: unusual-payment-method → `max(risk, FLOOR_UNUSUAL_PAYMENT)`
+    - Rule 4.13: `Math.round(Math.min(100, Math.max(0, risk)))`
     - All constants imported from `config.js`; no inline literals
     - Imports: `config.js` only
     - _Requirements: 4.1–4.10_
@@ -222,7 +224,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
     5. `From: Galactibank Support <noreply@mail-alerts.invalid>` + `Authentication-Results` with `spf=fail` + body → `skeptical`, riskScore 60, flags `{display-name-mismatch, spf-fail}`
     6. `"Meeting notes attached for review."` with `{ l2Hit: true }` → `poltergeist`, riskScore 90, no flags
     7. `"Please send your password."` with `{ l3Score: 80 }` → `skeptical`, riskScore 47, flags `{credential-request}`, confidence `"full"`
-    8. `URGENCY_BN_PHRASES[0] + " OTP পাঠান।"` (using the constant from config.js) → `skeptical`, riskScore 55, flags `{urgency-bn, credential-request}`
+    8. `"Act now: please confirm your password."` → `skeptical`, riskScore 55, flags `{urgency-en, credential-request}`
     9. `"Please open invoice.exe to see your order."` → `skeptical`, riskScore 40, flags `{suspicious-attachment}`
     10. `Click <a href="http://phish.invalid/offer">http://galactibank.example</a> to see it.` → `skeptical`, riskScore 35, flags `{link-text-mismatch}`
   - Also implement all edge-case unit tests from the design document
@@ -246,6 +248,13 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - Ensure all tests pass, ask the user if questions arise.
   - _Requirements: 10.1–10.10, 11.1–11.7, 12.1–12.4_
 
+- [x] 16. English-only engine and scam signals
+  - [x] 16.1 Remove Bangla support: `urgency-bn` signal, `W_URGENCY_BN`, `URGENCY_BN_PHRASES`, `CREDENTIAL_BN_TERMS`, the Bangla nukta handling in `content.js`, the `urgency-bn` branch of floor 4.8, and every Bangla fixture (golden 8 is now English urgency + credential; pure-script hostname fixtures use Cyrillic)
+  - [x] 16.2 Add `prize-lottery` (25), `advance-fee-scheme` (25), `financial-info-request` (30), `unusual-payment-method` (20), `secrecy-pressure` (10) to `content.js`, all Content; word lists, proximity windows, templates and cursed-phrase reasons in `config.js`
+  - [x] 16.3 Floors 4.10 (prize/advance-fee + card/payment → 70), 4.11 (card details → 50), 4.12 (unusual payment → 40) in `blend.js`; clamp is now 4.13
+  - [x] 16.4 Tests: positives for every new signal, 10 benign counterexamples, golden 11-13, P18 extended, P20 worst cases for the new regexes, new P21
+  - _Requirements: 2.15–2.20, 3.3, 4.8, 4.10–4.13, 10.8, 10.11–10.13_
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for a faster MVP (but all property tests are needed to satisfy Requirement 11)
@@ -253,7 +262,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
 - Checkpoints (tasks 12 and 15) ensure incremental validation at the boundary between unit tests and integration/property tests
 - Property tests validate universal correctness properties (P1–P20); golden tests validate specific examples from the spec
 - All fixtures must use only fictional brands (galactibank, orbitins, nexamail, vaultpay, trustledger) and reserved TLDs (.example, .test, .invalid)
-- `URGENCY_BN_PHRASES` constant from `config.js` must be used directly in golden test 8 — never a hardcoded Bangla string
+- The engine is English-only: no Bangla (or other language-specific) signals, phrase lists or fixtures
 
 ## Task Dependency Graph
 

@@ -35,9 +35,9 @@ describe("extractAsciiHostnames", () => {
 });
 
 describe("extractUnicodeHostnames", () => {
-  it("extracts mixed-script and Bangla hostnames", () => {
+  it("extracts mixed-script and single-script non-Latin hostnames", () => {
     expect(extractUnicodeHostnames("visit gаlactibank.example")).toEqual(["gаlactibank.example"]);
-    expect(extractUnicodeHostnames("visit গালাক্তিব্যাংক.example")).toEqual(["গালাক্তিব্যাংক.example"]);
+    expect(extractUnicodeHostnames("visit галактибанк.example")).toEqual(["галактибанк.example"]);
   });
 });
 

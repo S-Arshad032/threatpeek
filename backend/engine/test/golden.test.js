@@ -1,9 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { score } from "../src/index.js";
-import { URGENCY_BN_PHRASES, SIGNAL_CATEGORY, CATEGORY_CONTENT } from "../src/config.js";
+import { SIGNAL_CATEGORY, CATEGORY_CONTENT } from "../src/config.js";
 
 // Fixtures use fictional brands and reserved TLDs (.example, .test, .invalid) only.
-const PHRASE_SIGNALS = new Set(["urgency-en", "urgency-bn", "credential-request"]);
+const PHRASE_SIGNALS = new Set([
+  "urgency-en",
+  "credential-request",
+  "prize-lottery",
+  "advance-fee-scheme",
+  "financial-info-request",
+  "unusual-payment-method",
+  "secrecy-pressure",
+]);
 
 const GOLDEN = [
   {
@@ -63,9 +71,9 @@ const GOLDEN = [
     confidence: "full",
   },
   {
-    name: "8. Bangla urgency + credential-request (floor 4.8)",
-    input: `${URGENCY_BN_PHRASES[0]} OTP পাঠান।`,
-    flags: ["urgency-bn", "credential-request"],
+    name: "8. urgency + credential-request (floor 4.8)",
+    input: "Act now: please confirm your password.",
+    flags: ["urgency-en", "credential-request"],
     riskScore: 55,
     verdict: "skeptical",
   },
@@ -82,6 +90,32 @@ const GOLDEN = [
     flags: ["link-text-mismatch"],
     riskScore: 35,
     verdict: "skeptical",
+  },
+  {
+    name: "11. prize + card-details request (floor 4.10)",
+    input: "Congratulations! You have won $1 million. Enter your credit card details to get that money.",
+    flags: ["prize-lottery", "financial-info-request"],
+    riskScore: 70, // L1 45 (55 capped), then the 4.10 floor
+    verdict: "poltergeist",
+  },
+  {
+    name: "12. gift-card scam (floor 4.12)",
+    input:
+      "Hi, it's your manager. I need a quick favour: buy four Google Play gift cards of $100 each and " +
+      "send me the codes within the hour. Do not tell anyone, it's a surprise for the team.",
+    flags: ["unusual-payment-method", "secrecy-pressure"],
+    riskScore: 40, // L1 30, then the 4.12 floor
+    verdict: "skeptical",
+  },
+  {
+    name: "13. inheritance / advance-fee scam (floor 4.10)",
+    input:
+      "Dear friend, I am the lawyer of the late Mr Ostrander Vell, who left an inheritance with no heir. " +
+      "You are named as the beneficiary for the transfer of $4.5 million. To release the funds, pay the " +
+      "$300 clearance fee by wire transfer. Keep this confidential.",
+    flags: ["prize-lottery", "advance-fee-scheme", "unusual-payment-method", "secrecy-pressure"],
+    riskScore: 70, // L1 45 (80 capped), then the 4.10 floor
+    verdict: "poltergeist",
   },
 ];
 
@@ -109,8 +143,8 @@ describe("edge cases (design: Testing Strategy)", () => {
   it("Node.js is not an attachment", () => {
     expect(flagIds("I work with Node.js daily")).not.toContain("suspicious-attachment");
   });
-  it("a pure Bangla hostname is not a homograph", () => {
-    expect(flagIds("visit গালাক্তিব্যাংক.example")).not.toContain("homograph-punycode");
+  it("a pure Cyrillic hostname is not a homograph", () => {
+    expect(flagIds("visit галактибанк.example")).not.toContain("homograph-punycode");
   });
   it("risky-tld accepts a trailing slash but needs the TLD to be last", () => {
     expect(flagIds("http://bad.xyz/login")).toContain("risky-tld");

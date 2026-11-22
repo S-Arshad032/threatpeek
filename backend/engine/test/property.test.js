@@ -1,13 +1,21 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { score, blend, verdictFor } from "../src/index.js";
-import { ALL_SIGNAL_IDS, MAX_INPUT_LENGTH, URGENCY_BN_PHRASES } from "../src/config.js";
+import { ALL_SIGNAL_IDS, MAX_INPUT_LENGTH } from "../src/config.js";
 
 const NUM_RUNS = 100; // every property runs at least 100 iterations
 const run = (property) => fc.assert(property, { numRuns: NUM_RUNS });
 
 const VERDICTS = ["pookie", "skeptical", "poltergeist"];
-const PHRASE_SIGNALS = new Set(["urgency-en", "urgency-bn", "credential-request"]);
+const PHRASE_SIGNALS = new Set([
+  "urgency-en",
+  "credential-request",
+  "prize-lottery",
+  "advance-fee-scheme",
+  "financial-info-request",
+  "unusual-payment-method",
+  "secrecy-pressure",
+]);
 const SAFETY_CLAIM_RE = /\b(safe|risk-free)\b/i;
 const TIME_LIMIT_MS = 500;
 
@@ -46,11 +54,9 @@ const PHISHY_FRAGMENTS = [
   "\n",
   "Act now",
   "verify immediately",
-  URGENCY_BN_PHRASES[1],
   "password",
   "OTP",
   "please log in",
-  "পাসওয়ার্ড",
   "invoice.exe",
   "Node.js",
   "http://bad.xyz/portal",
@@ -67,6 +73,21 @@ const PHISHY_FRAGMENTS = [
   '<a href="http://phish.invalid/offer">http://galactibank.example</a>',
   "[galactibank.example](https://phish.invalid/x)",
   "safe.xyz",
+  "Congratulations!",
+  "You have won $1 million.",
+  "lucky winner",
+  "Enter your credit card details",
+  "reply with your CVV",
+  "Thanks for paying by credit card.",
+  "We will never ask you to share your card number.",
+  "inheritance",
+  "transfer of USD 4.5 million",
+  "pay the clearance fee",
+  "buy Google Play gift cards",
+  "pay in bitcoin",
+  "send the fee via mobile wallet",
+  "Do not tell anyone.",
+  "keep this confidential",
 ];
 const phishyArb = fc
   .array(fc.constantFrom(...PHISHY_FRAGMENTS), { maxLength: 40 })
@@ -85,7 +106,12 @@ const validOptionsArb = fc.oneof(
   fc.record({ l2Hit: fc.boolean(), l3Score: l3Arb }, { requiredKeys: [] }),
 );
 
-const ADVERSARIAL_FRAGMENTS = ["a.", "<a ", "[", "http://", "From: ", "-", "xn--", " "];
+const ADVERSARIAL_FRAGMENTS = [
+  "a.", "<a ", "[", "http://", "From: ", "-", "xn--", " ",
+  // content proximity regexes: many verbs, negations and near-miss terms in one long sentence
+  "enter ", "pay ", "send ", "never ", "not ", "credit ", "card ", "gift ", "mobile ", "wallet ", "fee ",
+  "$1", "1,", " million", "congratulations ", "transfer of ", "don't ", "keep this ",
+];
 const adversarialArb = fc.oneof(
   fc
     .array(fc.constantFrom(...ADVERSARIAL_FRAGMENTS), { maxLength: 1000 })
@@ -93,7 +119,7 @@ const adversarialArb = fc.oneof(
     .filter((s) => s.length <= MAX_INPUT_LENGTH),
   // long runs of a single character
   fc
-    .tuple(fc.constantFrom("a", ".", "-", "1", "[", "<", " ", "\n", "@", "x", "আ"), fc.integer({ min: 1, max: MAX_INPUT_LENGTH }))
+    .tuple(fc.constantFrom("a", ".", "-", "1", "[", "<", " ", "\n", "@", "x", "é", "$"), fc.integer({ min: 1, max: MAX_INPUT_LENGTH }))
     .map(([c, n]) => c.repeat(n)),
 );
 
@@ -228,10 +254,61 @@ describe("score properties", () => {
 
   // Feature: threat-scoring, Property 20: arbitrary and adversarial input never throws and stays fast
   it("P20: robustness (ReDoS)", () => {
+    // Hand-built worst cases for every bounded-gap regex: each start position is a candidate
+    // verb/marker and the closing term never arrives (or arrives only at the very end).
+    const fill = (unit) => unit.repeat(Math.floor(MAX_INPUT_LENGTH / unit.length));
+    const worstCases = [
+      fill("enter "),
+      fill("enter your "),
+      fill("never share "),
+      fill("pay send buy "),
+      fill("pay mobile wallet "),
+      fill("pay fee "),
+      fill("congratulations "),
+      fill("$1,"),
+      fill("1,1."),
+      fill("usd 1 "),
+      fill("transfer of $1 "),
+      fill("don't "),
+      fill("enter ").slice(0, MAX_INPUT_LENGTH - 12) + "credit card",
+      fill("pay ").slice(0, MAX_INPUT_LENGTH - 10) + "gift cards",
+    ];
+    for (const input of worstCases) {
+      expect(input.length).toBeLessThanOrEqual(MAX_INPUT_LENGTH);
+      const start = performance.now();
+      expect(() => score(input)).not.toThrow();
+      expect(performance.now() - start).toBeLessThan(TIME_LIMIT_MS);
+    }
     run(fc.property(fc.oneof(textArb, adversarialArb), (input) => {
       const start = performance.now();
       expect(() => score(input)).not.toThrow();
       expect(performance.now() - start).toBeLessThan(TIME_LIMIT_MS);
+    }));
+  });
+});
+
+// Feature: threat-scoring, Property 21: scam-style text stays in range, is deterministic and meets its floors
+describe("scam signal properties", () => {
+  const SCAM_FRAGMENTS = PHISHY_FRAGMENTS.slice(PHISHY_FRAGMENTS.indexOf("Congratulations!"));
+  const scamArb = fc
+    .array(fc.constantFrom(...SCAM_FRAGMENTS, "hello", "\n", "."), { maxLength: 30 })
+    .map((parts) => parts.join(" "));
+
+  it("P21: scam text range, determinism and floors", () => {
+    run(fc.property(scamArb, validOptionsArb, (input, options) => {
+      const r = score(input, options);
+      expect(Number.isInteger(r.riskScore)).toBe(true);
+      expect(r.riskScore).toBeGreaterThanOrEqual(0);
+      expect(r.riskScore).toBeLessThanOrEqual(100);
+      expect(score(input, options)).toEqual(r);
+
+      const ids = new Set(r.redFlags.map((f) => f.id));
+      const bait = ids.has("prize-lottery") || ids.has("advance-fee-scheme");
+      if (bait && (ids.has("financial-info-request") || ids.has("unusual-payment-method"))) {
+        expect(r.riskScore).toBeGreaterThanOrEqual(70);
+      }
+      if (ids.has("financial-info-request")) expect(r.riskScore).toBeGreaterThanOrEqual(50);
+      if (ids.has("unusual-payment-method")) expect(r.riskScore).toBeGreaterThanOrEqual(40);
     }));
   });
 });
@@ -280,7 +357,7 @@ describe("blend and verdictFor properties", () => {
     }));
   });
 
-  // Feature: threat-scoring, Property 18: the five hard floors always hold
+  // Feature: threat-scoring, Property 18: the eight hard floors always hold
   it("P18: hard floors", () => {
     const floors = [
       [["typosquatting", "credential-request"], 70],
@@ -288,8 +365,13 @@ describe("blend and verdictFor properties", () => {
       [["spf-fail", "display-name-mismatch"], 60],
       [["dkim-fail", "display-name-mismatch"], 60],
       [["credential-request", "urgency-en"], 55],
-      [["credential-request", "urgency-bn"], 55],
       [["suspicious-attachment"], 40],
+      [["prize-lottery", "financial-info-request"], 70],
+      [["prize-lottery", "unusual-payment-method"], 70],
+      [["advance-fee-scheme", "financial-info-request"], 70],
+      [["advance-fee-scheme", "unusual-payment-method"], 70],
+      [["financial-info-request"], 50],
+      [["unusual-payment-method"], 40],
     ];
     run(fc.property(l1Arb, l2Arb, l3Arb, flagListArb, fc.constantFrom(...floors), (l1, l2, l3, extra, [required, min]) => {
       expect(blend(l1, l2, l3, [...extra, ...required])).toBeGreaterThanOrEqual(min);

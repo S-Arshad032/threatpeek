@@ -4,6 +4,8 @@
 
 The threat-scoring engine is a pure-JavaScript, ES-module library that analyses a text message and returns a structured risk assessment. It runs entirely in-memory with no I/O, no browser APIs, and no Node.js built-ins, making it portable across any JavaScript runtime. The engine combines three scoring layers — L1 heuristics (pattern matching), L2 blacklist signals, and an optional L3 AI score — into a single integer risk score accompanied by a plain-language verdict, a list of detected red flags, highlighted cursed phrases, and a confidence level.
 
+The engine analyses English text only. It has no language-specific signals for other languages; Unicode is still handled for hostname checks (for example Cyrillic or Greek look-alike letters).
+
 ## Requirements
 
 ### Requirement 1: Structured Input / Typed Result
@@ -38,13 +40,17 @@ The threat-scoring engine is a pure-JavaScript, ES-module library that analyses 
 7. `display-name-mismatch` (Identity/Auth, weight 25): fires when the email From display name claims to be a known brand but the actual sending domain does not match that brand.
 8. `link-text-mismatch` (Link, weight 35): fires when the visible link text and the real href point to different domains. Supported link formats: HTML anchors (`<a href="...">text</a>`) and Markdown-style links (`[text](url)`). On its own (weight 35, Link cap 35) this yields an L1_Score of 35.
 9. `urgency-en` (Content, weight 15): fires when the message contains English urgency language (e.g. "act now", "verify immediately", "your account will be suspended").
-10. `urgency-bn` (Content, weight 15): fires when the message contains Bangla urgency language (equivalent Bangla phrases).
-11. `credential-request` (Content, weight 20): fires when the message requests a login, password, PIN, or OTP.
-12. `suspicious-attachment` (Content, weight 20): fires when the message mentions or contains a filename with a dangerous extension (.exe, .scr, .vbs, .bat, .cmd, .js, .lnk, .iso, .img).
-13. `spf-fail` (Identity/Auth, weight 20): fires when an SPF header is present and reports a failure.
-14. `dkim-fail` (Identity/Auth, weight 20): fires when a DKIM header is present and reports a failure.
-15. `dmarc-fail` (Identity/Auth, weight 15): fires when a DMARC header is present and reports a failure.
-16. All regular expressions used in the engine must be safe against catastrophic backtracking: no unbounded nested quantifiers, no exponential alternation on overlapping patterns.
+10. `credential-request` (Content, weight 20): fires when the message requests a login, password, PIN, or OTP.
+11. `suspicious-attachment` (Content, weight 20): fires when the message mentions or contains a filename with a dangerous extension (.exe, .scr, .vbs, .bat, .cmd, .js, .lnk, .iso, .img).
+12. `spf-fail` (Identity/Auth, weight 20): fires when an SPF header is present and reports a failure.
+13. `dkim-fail` (Identity/Auth, weight 20): fires when a DKIM header is present and reports a failure.
+14. `dmarc-fail` (Identity/Auth, weight 15): fires when a DMARC header is present and reports a failure.
+15. `prize-lottery` (Content, weight 25): fires when the message claims the reader won something: "you have won", "you've won", "you are the winner", "lucky winner", "claim your prize", "lottery", "jackpot", "free gift", "congratulations" followed within 60 characters by won/winner/selected/prize/lottery/jackpot, or a large money amount with a currency marker and million/billion (e.g. "$1 million"). "Congratulations on your new job!" alone does not fire.
+16. `advance-fee-scheme` (Content, weight 25): fires on inheritance or advance-fee wording: "inheritance", "unclaimed funds", "beneficiary", "processing fee", "release fee", "clearance fee", "pay a small fee to receive", or "transfer of" followed by a large money amount (e.g. "transfer of $4.5 million").
+17. `financial-info-request` (Content, weight 30): fires when a request verb (enter, provide, send, share, confirm, verify, update, reply with, give, submit, type) is followed within 60 characters, in the same sentence, by a card or bank term (credit card, debit card, card number, card details, CVV, CVC, expiry date, bank account, account number, routing number, SSN, social security). The proximity rule is mandatory: "Thanks for paying by credit card" does not fire. A request verb shortly after a negation ("we will never ask you to share your card number") does not fire.
+18. `unusual-payment-method` (Content, weight 20): fires when a payment verb (pay, send, transfer, buy) is followed within 60 characters, in the same sentence, by a hard-to-trace method: gift cards, iTunes or Google Play cards, bitcoin or crypto, wire transfer, Western Union, MoneyGram. A mobile wallet counts only when a fee is mentioned in the same sentence. A payment verb shortly after a negation does not fire.
+19. `secrecy-pressure` (Content, weight 10): fires on requests to keep the message secret: "do not tell anyone", "keep this confidential", "don't share this with anyone" and close variants.
+20. All regular expressions used in the engine must be safe against catastrophic backtracking: no unbounded nested quantifiers, no exponential alternation on overlapping patterns. Proximity rules use bounded, negated character classes.
 
 ---
 
@@ -56,7 +62,7 @@ The threat-scoring engine is a pure-JavaScript, ES-module library that analyses 
 
 1. The result includes a `cursedPhrases` array.
 2. Each entry has: `text` (the matched span from the input) and `reason` (plain-English explanation of why that phrase is suspicious).
-3. Phrases that trigger `credential-request`, `urgency-en`, or `urgency-bn` signals are candidates for cursed-phrase annotation.
+3. Phrases that trigger `urgency-en`, `credential-request`, `prize-lottery`, `advance-fee-scheme`, `financial-info-request`, `unusual-payment-method` or `secrecy-pressure` are candidates for cursed-phrase annotation. `suspicious-attachment` produces no cursed phrase.
 4. When no such phrases are found, `cursedPhrases` is an empty array.
 
 ---
@@ -76,9 +82,12 @@ The module exports a pure function `blend(l1Score, l2Hit, l3Score, flags)` that 
 5. Hard floor: if flags include `typosquatting` AND `credential-request`, then `risk = max(risk, 70)`
 6. Hard floor: if flags include `raw-ip-url` AND `credential-request`, then `risk = max(risk, 70)`
 7. Hard floor: if flags include (`spf-fail` OR `dkim-fail`) AND `display-name-mismatch`, then `risk = max(risk, 60)`
-8. Hard floor: if flags include `credential-request` AND (`urgency-en` OR `urgency-bn`), then `risk = max(risk, 55)`
+8. Hard floor: if flags include `credential-request` AND `urgency-en`, then `risk = max(risk, 55)`
 9. Hard floor: if flags include `suspicious-attachment`, then `risk = max(risk, 40)`
-10. Clamp to 0–100 and round to nearest integer.
+10. Hard floor: if flags include (`prize-lottery` OR `advance-fee-scheme`) AND (`financial-info-request` OR `unusual-payment-method`), then `risk = max(risk, 70)`
+11. Hard floor: if flags include `financial-info-request`, then `risk = max(risk, 50)`
+12. Hard floor: if flags include `unusual-payment-method`, then `risk = max(risk, 40)`
+13. Clamp to 0–100 and round to nearest integer.
 
 ---
 
@@ -149,7 +158,7 @@ The module exports a pure function `blend(l1Score, l2Hit, l3Score, flags)` that 
 
 #### Acceptance Criteria
 
-At least 10 golden tests must be provided, each using reserved domains (.example, .test, .invalid) and fictional brand names only. The cases must cover:
+At least 13 golden tests must be provided, each using reserved domains (.example, .test, .invalid) and fictional brand names only. The cases must cover:
 
 1. **Clean message** — no signals fire → `pookie` (riskScore ≤ 30).
 2. **Risky-TLD + credential-request** — `risky-tld` (weight 15) + `credential-request` (weight 20) = L1 35, no hard floor applies (no urgency phrase) → `skeptical`.
@@ -158,9 +167,14 @@ At least 10 golden tests must be provided, each using reserved domains (.example
 5. **SPF/DKIM fail + display-name mismatch** — hard floor rule 4.7 applies (riskScore ≥ 60) → at least `skeptical`.
 6. **L2 hit (blacklist)** — rule 4.1 applies → `poltergeist` (riskScore ≥ 90).
 7. **L3 score supplied** — rule 4.2 weighted blend applies → riskScore = round(0.55 × L1 + 0.45 × L3).
-8. **Bangla urgency + credential-request** — hard floor rule 4.8 applies (riskScore ≥ 55) → `skeptical` or higher. The input must contain both a Bangla urgency phrase and a credential request (e.g. OTP).
+8. **Urgency + credential-request** — hard floor rule 4.8 applies (riskScore ≥ 55) → `skeptical` or higher. The input must contain both an English urgency phrase and a credential request (e.g. "Act now: please confirm your password.").
 9. **Suspicious attachment only** — hard floor rule 4.9 applies (riskScore ≥ 40) → `skeptical` or higher. The input contains only a suspicious attachment filename with no other signals.
 10. **Link-text mismatch only** — `link-text-mismatch` weight 35 (Link cap 35) → L1_Score 35 → `skeptical` or higher.
+11. **Prize + card-details request** — "Congratulations! You have won $1 million. Enter your credit card details to get that money." → hard floor rule 4.10 applies → `poltergeist` (riskScore ≥ 70).
+12. **Gift-card scam** — a payment request by gift card, with no prize or inheritance story → hard floor rule 4.12 applies (riskScore ≥ 40) → `skeptical` or higher.
+13. **Inheritance / advance-fee scam** — an inheritance story with a fee paid by wire transfer → hard floor rule 4.10 applies → `poltergeist` (riskScore ≥ 70).
+
+Benign counterexamples (at least 8) must stay `pookie`, for example "Thanks for paying by credit card", "Your order has shipped", "Congratulations on your new job!" and a bank notice that asks for no details.
 
 ---
 

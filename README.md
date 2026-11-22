@@ -16,7 +16,7 @@ ThreatPeek checks a message in three layers. Only the first one is needed. The a
 
 | Layer | What it does | Where it runs | Default |
 |---|---|---|---|
-| **1. Rules engine** | Checks 13 warning signals and gives a score with an explanation for each signal found | In your browser | Always on |
+| **1. Rules engine** | Checks 17 warning signals in English text and gives a score with an explanation for each signal found | In your browser | Always on |
 | **2. Google Safe Browsing** | Follows shortened or redirecting links, then asks Google if a link is on its list of known bad sites | Through our server | Off unless a key is set |
 | **3. AI second opinion** | Asks an AI model (through OpenRouter) to rate the message | Through our server | Off |
 
@@ -25,13 +25,13 @@ ThreatPeek checks a message in three layers. Only the first one is needed. The a
 - Plain JavaScript with no dependencies, no network calls and no browser or Node.js APIs. The browser and the server share the same code ([backend/engine](backend/engine)).
 - **Deterministic:** the same text always gives the same result.
 - **Explainable:** every point of the score comes from a named signal, and each signal comes with the text that triggered it and a plain-English explanation.
-- **13 signals in 4 groups:**
+- **17 signals in 4 groups** (English text only):
   - **Identity:** look-alike domains (typosquatting), disguised letters (homograph / punycode), and sender names that don't match the address.
   - **Email auth headers:** SPF, DKIM or DMARC failures, if headers are pasted.
   - **Links:** links to a bare IP address, risky domain endings, and link text that points somewhere else.
-  - **Content:** urgency in English or Bangla, requests for passwords or codes, and risky attachments.
+  - **Content:** urgency, requests for passwords or codes, risky attachments, prize and lottery bait, inheritance and advance-fee stories, requests for card or bank details, payment by gift card, crypto or money transfer, and requests to keep the message secret.
 - **Caps:** each group has a maximum (identity/auth 40, links 35, content 45), so one kind of signal cannot take over the score.
-- **Floors:** dangerous combinations get a minimum score. For example, a look-alike domain plus a password request always scores at least 70.
+- **Floors:** dangerous combinations get a minimum score. For example, a look-alike domain plus a password request always scores at least 70, and so does a prize or inheritance story combined with a request for card details or gift-card payment. A request for card or bank details on its own scores at least 50.
 - The score maps to the ghost: 0–30 Pookie, 31–69 Skeptical, 70–100 Poltergeist.
 
 Weights, caps, floors and word lists are all in [backend/engine/src/config.js](backend/engine/src/config.js).
@@ -140,10 +140,10 @@ npm test    # engine, server and frontend
 
 | Package | Test files | Tests | What they cover |
 |---|---|---|---|
-| `backend/engine` | 13 | 139 | Unit tests per module, 10 golden tests, fast-check property tests |
+| `backend/engine` | 13 | 173 | Unit tests per module, 13 golden tests, fast-check property tests |
 | `backend/server` | 8 | 208 | Endpoints, SSRF guard and IP ranges, env loading, cache; no network needed |
 | `frontend` | 1 | 4 | The `api.js` adapter in mock mode |
-| **Total** | **22** | **351** | |
+| **Total** | **22** | **385** | |
 
 ## How we built it
 

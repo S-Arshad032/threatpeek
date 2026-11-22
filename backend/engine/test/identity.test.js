@@ -29,8 +29,8 @@ describe("detectIdentity: homograph-punycode", () => {
   it("fires on a Cyrillic look-alike letter", () => {
     expect(ids("visit gаlactibank.example")).toContain("homograph-punycode");
   });
-  it("does not fire on a pure Bangla hostname", () => {
-    expect(ids("visit গালাক্তিব্যাংক.example")).not.toContain("homograph-punycode");
+  it("does not fire on a pure Cyrillic hostname", () => {
+    expect(ids("visit галактибанк.example")).not.toContain("homograph-punycode");
   });
   it("fires on punycode", () => {
     expect(ids("visit xn--galctibnk-r8a.example")).toContain("homograph-punycode");

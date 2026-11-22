@@ -10,6 +10,9 @@ import {
   FLOOR_AUTH_DISPLAY,
   FLOOR_CRED_URGENCY,
   FLOOR_ATTACHMENT,
+  FLOOR_PRIZE_PAYMENT,
+  FLOOR_FINANCIAL_INFO,
+  FLOOR_UNUSUAL_PAYMENT,
   SCORE_MIN,
   SCORE_MAX,
 } from "./config.js";
@@ -42,10 +45,16 @@ export function blend(l1Score, l2Hit, l3Score, flags) {
   if ((has("spf-fail") || has("dkim-fail")) && has("display-name-mismatch")) {
     risk = Math.max(risk, FLOOR_AUTH_DISPLAY); // 4.7
   }
-  if (has("credential-request") && (has("urgency-en") || has("urgency-bn"))) {
-    risk = Math.max(risk, FLOOR_CRED_URGENCY); // 4.8
-  }
+  if (has("credential-request") && has("urgency-en")) risk = Math.max(risk, FLOOR_CRED_URGENCY); // 4.8
   if (has("suspicious-attachment")) risk = Math.max(risk, FLOOR_ATTACHMENT); // 4.9
+  if (
+    (has("prize-lottery") || has("advance-fee-scheme")) &&
+    (has("financial-info-request") || has("unusual-payment-method"))
+  ) {
+    risk = Math.max(risk, FLOOR_PRIZE_PAYMENT); // 4.10
+  }
+  if (has("financial-info-request")) risk = Math.max(risk, FLOOR_FINANCIAL_INFO); // 4.11
+  if (has("unusual-payment-method")) risk = Math.max(risk, FLOOR_UNUSUAL_PAYMENT); // 4.12
 
-  return Math.round(Math.min(SCORE_MAX, Math.max(SCORE_MIN, risk))); // 4.10
+  return Math.round(Math.min(SCORE_MAX, Math.max(SCORE_MIN, risk))); // 4.13
 }

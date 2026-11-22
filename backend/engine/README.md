@@ -33,8 +33,8 @@ The package also exports `blend(l1Score, l2Hit, l3Score, flags)` and `verdictFor
 
 ## How it scores
 
-1. **L1 heuristics.** Four detectors run in order: identity, auth headers, links, content. Together they check 13 signals. Each signal's weight counts once, and each category has a cap: identity/auth 40, link 35, content 45.
-2. **Blend.** The L1 score is combined with `l2Hit` and `l3Score`. The result never drops below 0.8 × L1. Hard floors then apply to dangerous combinations, for example a look-alike domain plus a password request scores at least 70.
+1. **L1 heuristics.** Four detectors run in order: identity, auth headers, links, content. Together they check 17 signals (English text only). Each signal's weight counts once, and each category has a cap: identity/auth 40, link 35, content 45.
+2. **Blend.** The L1 score is combined with `l2Hit` and `l3Score`. The result never drops below 0.8 × L1. Hard floors then apply to dangerous combinations, for example a look-alike domain plus a password request scores at least 70, and a prize or inheritance story plus a request for card details or gift-card payment also scores at least 70.
 3. **Verdict.** The blended score maps to `verdictFor`.
 
 All weights, caps, floors, word lists and explanation texts live in [`src/config.js`](src/config.js). The fictional default brands live in [`src/brands.js`](src/brands.js).

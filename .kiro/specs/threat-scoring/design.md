@@ -2,7 +2,7 @@
 
 ## Overview
 
-The threat-scoring engine is a pure-JavaScript ES-module library in `backend/engine`. It accepts a text message (email body, SMS or URL) and returns a structured risk assessment (`RiskResult`). It has no I/O, no browser APIs and no Node.js built-ins, so it runs unchanged in browsers, Node.js, Deno and edge runtimes.
+The threat-scoring engine is a pure-JavaScript ES-module library in `backend/engine`. It accepts a text message (email body, SMS or URL) and returns a structured risk assessment (`RiskResult`). It has no I/O, no browser APIs and no Node.js built-ins, so it runs unchanged in browsers, Node.js, Deno and edge runtimes. Content signals are English-only; Unicode is still handled for hostname checks.
 
 Analysis happens in three layers:
 
@@ -124,12 +124,16 @@ export const W_RISKY_TLD             = 15;
 export const W_DISPLAY_NAME_MISMATCH = 25;
 export const W_LINK_TEXT_MISMATCH    = 35;
 export const W_URGENCY_EN            = 15;
-export const W_URGENCY_BN            = 15;
 export const W_CREDENTIAL_REQUEST    = 20;
 export const W_SUSPICIOUS_ATTACHMENT = 20;
 export const W_SPF_FAIL              = 20;
 export const W_DKIM_FAIL             = 20;
 export const W_DMARC_FAIL            = 15;
+export const W_PRIZE_LOTTERY          = 25;
+export const W_ADVANCE_FEE_SCHEME     = 25;
+export const W_FINANCIAL_INFO_REQUEST = 30;
+export const W_UNUSUAL_PAYMENT_METHOD = 20;
+export const W_SECRECY_PRESSURE       = 10;
 
 // Category caps
 export const CAP_IDENTITY_AUTH = 40;
@@ -146,6 +150,16 @@ export const FLOOR_RAWIP_CRED     = 70;
 export const FLOOR_AUTH_DISPLAY   = 60;
 export const FLOOR_CRED_URGENCY   = 55;
 export const FLOOR_ATTACHMENT     = 40;
+export const FLOOR_PRIZE_PAYMENT  = 70;
+export const FLOOR_FINANCIAL_INFO = 50;
+export const FLOOR_UNUSUAL_PAYMENT = 40;
+
+// Content proximity windows (characters)
+export const REQUEST_PROXIMITY_CHARS = 60;
+export const PRIZE_PROXIMITY_CHARS   = 60;
+export const NEGATION_WINDOW_CHARS   = 30;
+export const MONEY_DIGITS_MAX        = 15;
+export const MONEY_SPACE_MAX         = 3;
 
 // Blend coefficients
 export const BLEND_L1_WEIGHT       = 0.55;
@@ -171,15 +185,19 @@ export const SIGNAL_CATEGORY = {
   "display-name-mismatch": "identity-auth", "spf-fail": "identity-auth",
   "dkim-fail": "identity-auth", "dmarc-fail": "identity-auth",
   "raw-ip-url": "link", "risky-tld": "link", "link-text-mismatch": "link",
-  "urgency-en": "content", "urgency-bn": "content",
-  "credential-request": "content", "suspicious-attachment": "content",
+  "urgency-en": "content", "credential-request": "content", "suspicious-attachment": "content",
+  "prize-lottery": "content", "advance-fee-scheme": "content", "financial-info-request": "content",
+  "unusual-payment-method": "content", "secrecy-pressure": "content",
 };
 export const RISKY_TLDS = ["xyz", "top", "click", "tk", "ml", "ga", "cf"]; // exactly Requirement 2.6
 export const DANGEROUS_EXTENSIONS = ["exe", "scr", "vbs", "bat", "cmd", "js", "lnk", "iso", "img"];
 export const JS_LIBRARY_ALLOWLIST = ["node", "react", "vue", "next", "nuxt", "express", "angular", "d3", "three"];
 export const SECOND_LEVEL_LABELS = ["com", "co", "org", "net", "gov", "edu", "ac"]; // used with 2-letter country TLDs, e.g. com.bd, co.uk
 export const URGENCY_EN_PHRASES = [ /* see content.js section */ ];
-export const URGENCY_BN_PHRASES = [ /* see content.js section */ ];
+// Also (see content.js section): PRIZE_PHRASES, CONGRATS_WORDS, PRIZE_WORDS, CURRENCY_SYMBOLS,
+// CURRENCY_CODES, CURRENCY_WORDS, LARGE_AMOUNT_WORDS, ADVANCE_FEE_PHRASES, FINANCIAL_REQUEST_VERBS,
+// FINANCIAL_INFO_TERMS, NEGATION_WORDS, PAYMENT_VERBS, PAYMENT_METHODS, MOBILE_WALLET_TERMS,
+// FEE_WORDS, SECRECY_PHRASES
 ```
 
 ### brands.js
@@ -234,7 +252,9 @@ function score(input, options):
 
 **One-flag-per-signal rule.** Each signal id produces at most ONE `RedFlag` per message, and its weight is counted once, however many matches there are. `evidence` records the first match. Extra matches only add entries to `cursedPhrases` (content signals only).
 
-**Safety floor.** The smallest single flag weight is 15, so any message with a flag has `l1Score >= 15`, and the `0.8 x l1Score` floor gives `riskScore >= 12 > 0` (Requirement 8.1). The engine never produces any wording that says a message is safe; `confidence: "limited"` tells the UI the result is a heuristics-only estimate (Requirement 8.3).
+**Safety floor.** The smallest single flag weight is 10 (`secrecy-pressure`), so any message with a flag has `l1Score >= 10`, and the `0.8 x l1Score` floor gives `riskScore >= 8 > 0` (Requirement 8.1).
+
+**Content cap.** The eight Content signals add up to 165 points before the cap, and `CAP_CONTENT` stays at 45. Two strong content signals already reach the cap; the dangerous combinations are lifted further by the hard floors (4.8, 4.10-4.12), not by raising the cap. The engine never produces any wording that says a message is safe; `confidence: "limited"` tells the UI the result is a heuristics-only estimate (Requirement 8.3).
 
 ---
 
@@ -254,11 +274,15 @@ function blend(l1Score, l2Hit, l3Score, flags):
   if has("raw-ip-url")    && has("credential-request"):   risk = max(risk, FLOOR_RAWIP_CRED)      // 4.6
   if (has("spf-fail") || has("dkim-fail")) && has("display-name-mismatch"):
                                                           risk = max(risk, FLOOR_AUTH_DISPLAY)    // 4.7
-  if has("credential-request") && (has("urgency-en") || has("urgency-bn")):
-                                                          risk = max(risk, FLOOR_CRED_URGENCY)    // 4.8
+  if has("credential-request") && has("urgency-en"):     risk = max(risk, FLOOR_CRED_URGENCY)    // 4.8
   if has("suspicious-attachment"):                        risk = max(risk, FLOOR_ATTACHMENT)      // 4.9
+  if (has("prize-lottery") || has("advance-fee-scheme")) &&
+     (has("financial-info-request") || has("unusual-payment-method")):
+                                                          risk = max(risk, FLOOR_PRIZE_PAYMENT)   // 4.10
+  if has("financial-info-request"):                       risk = max(risk, FLOOR_FINANCIAL_INFO)  // 4.11
+  if has("unusual-payment-method"):                       risk = max(risk, FLOOR_UNUSUAL_PAYMENT) // 4.12
 
-  return Math.round(Math.min(100, Math.max(0, risk)))                                   // 4.10
+  return Math.round(Math.min(100, Math.max(0, risk)))                                   // 4.13
 ```
 
 The 0.8 x L1 floor is applied before the hard floors; hard floors can only raise the score. Clamp and round are always last.
@@ -294,7 +318,7 @@ Two shared hostname extractors. Both use the `u` flag and Unicode-aware lookarou
 /(?<![\p{L}\p{N}\p{M}_.-])((?:[\p{L}\p{N}](?:[\p{L}\p{N}\p{M}-]{0,61}[\p{L}\p{N}\p{M}])?\.){1,10}[\p{L}\p{M}]{2,24})(?![\p{L}\p{N}\p{M}_@-])/gu
 ```
 
-`\p{M}` (combining marks) is included so scripts with vowel signs, such as Bangla, form valid labels.
+`\p{M}` (combining marks) is included so labels written with combining marks still form valid hostnames.
 
 Both extractors are applied with `matchAll`, lowercase the result, de-duplicate, and stop after `MAX_HOSTNAMES_SCANNED` hostnames.
 
@@ -336,7 +360,7 @@ Regex safety: only the bounded extractor above is used; the comparison is plain 
 2. Split each hostname into labels. The signal fires when any label:
    - starts with `xn--` (case-insensitive), OR
    - mixes Latin letters (`[A-Za-z]`) with Cyrillic or Greek letters (`[Ͱ-ϿЀ-ӿ]`) within the same label.
-3. It does NOT fire for a hostname written entirely in one script (for example pure Bangla), because legitimate internationalized domains exist.
+3. It does NOT fire for a hostname written entirely in one script (for example pure Cyrillic), because legitimate internationalized domains exist.
 4. Emit at most one `RedFlag`. `evidence` is the first suspicious hostname.
 
 #### display-name-mismatch (weight `W_DISPLAY_NAME_MISMATCH` = 25)
@@ -409,7 +433,9 @@ All inner groups are negated classes with explicit length caps; the HTML pattern
 
 ### content.js
 
-Signals: `urgency-en`, `urgency-bn`, `credential-request`, `suspicious-attachment`. All Content. The first three produce `cursedPhrases`. Cursed phrases are de-duplicated by lowercase text and limited to `MAX_CURSED_PHRASES` (20).
+Signals: `urgency-en`, `credential-request`, `suspicious-attachment`, `prize-lottery`, `advance-fee-scheme`, `financial-info-request`, `unusual-payment-method`, `secrecy-pressure`. All Content, English text only. Every signal except `suspicious-attachment` produces `cursedPhrases`. Flags are emitted in that order. Cursed phrases are collected in the same order (urgency, credential, then the five scam signals), de-duplicated by lowercase text and limited to `MAX_CURSED_PHRASES` (20).
+
+Phrase lists are compiled the same way everywhere: each phrase is regex-escaped, single spaces become `\s+`, an apostrophe also accepts the typographic `’`, and the phrases are joined with `|` inside `\b(?:...)\b` with the `gi` flags.
 
 #### urgency-en (weight `W_URGENCY_EN` = 15)
 
@@ -418,18 +444,6 @@ Signals: `urgency-en`, `urgency-bn`, `credential-request`, `suspicious-attachmen
 ```
 
 Each match becomes a `CursedPhrase` with a reason such as "Scammers rush you so you do not stop to check." One `RedFlag` per message; `evidence` is the first match. (`\s+` sits between fixed words only, so there is no nested quantifier.)
-
-#### urgency-bn (weight `W_URGENCY_BN` = 15)
-
-`URGENCY_BN_PHRASES` in `config.js` holds fixed Bangla phrases, for example:
-
-- `আপনার অ্যাকাউন্ট স্থগিত হবে`
-- `এখনই যাচাই করুন`
-- `অবিলম্বে যাচাই`
-- `এখনই সাড়া দিন`
-- `অ্যাকাউন্ট বন্ধ হয়ে যাবে`
-
-The regex is compiled from this list (regex-escaped, joined with `|`, single spaces replaced by `\s+`, `u` flag, no `\b` because it does not work for Bangla). Each match becomes a `CursedPhrase`. One `RedFlag` per message. Golden tests build their Bangla fixtures from these same constants, so a fixture and the pattern can never drift apart.
 
 #### credential-request (weight `W_CREDENTIAL_REQUEST` = 20)
 
@@ -445,8 +459,6 @@ Case-sensitive pass (uppercase only, so the ordinary word "pin" never fires):
 /\b(?:PIN|OTP)\b/g
 ```
 
-Bangla terms (no `\b`): `পাসওয়ার্ড`, `ওটিপি`, `পিন নম্বর`.
-
 Each match becomes a `CursedPhrase`. One `RedFlag` per message.
 
 #### suspicious-attachment (weight `W_SUSPICIOUS_ATTACHMENT` = 20)
@@ -459,6 +471,54 @@ Each match becomes a `CursedPhrase`. One `RedFlag` per message.
 - The terminator requires whitespace, a quote, `)`, `,`, `;`, `!`, `?`, a sentence-ending dot, or end of text. A following `.` plus another label does not match, so `blog.bat.example` does not fire.
 - **Allowlist**: when the extension is `js` and the base name (lowercased) is in `JS_LIBRARY_ALLOWLIST` (`node`, `react`, `vue`, `next`, `nuxt`, `express`, `angular`, `d3`, `three`), skip it. "I work with Node.js" does not fire.
 - One `RedFlag` per message; `evidence` is the first matched filename. This signal produces no cursed phrase.
+
+#### Shared building blocks for the scam signals
+
+```js
+NEAR        = `[^.!?\n]{0,60}?`        // REQUEST_PROXIMITY_CHARS: same sentence, same line, bounded
+NOT_NEGATED = `(?<!\b(?:never|not|don['’]t|won['’]t|can['’]t|cannot)\b[^.!?\n]{0,30})`  // NEGATION_WINDOW_CHARS
+MONEY       = `(?:(?:\$|£|€|\b(?:us\$|usd|gbp|eur)\s{0,3})\d[\d,.]{0,15}\s{0,3}(?:million|billion)\b`
+            + `|\b\d[\d,.]{0,15}\s{0,3}(?:million|billion)\s+(?:dollars|pounds|euros)\b)`
+```
+
+Every gap is a negated class with an explicit upper bound, so each start position does a bounded amount of work and matching is linear in the input length. Stopping at `.`, `!`, `?` and line breaks keeps the verb and the term in the same sentence, so "Please confirm your appointment. We accept every credit card." does not fire. The negation lookbehind is also bounded.
+
+#### prize-lottery (weight `W_PRIZE_LOTTERY` = 25)
+
+Three patterns; the earliest match is the evidence and every match is a `CursedPhrase`:
+
+1. `PRIZE_PHRASES`: "you have won", "you've won", "you are the winner", "you're the winner", "lucky winner", "claim your prize", "lottery", "jackpot", "free gift".
+2. `\b(?:congratulations|congrats)\b(?=[\s\S]{0,60}?\b(?:won|winner|selected|prize|lottery|jackpot)\b)`. The lookahead keeps the cursed phrase to the greeting itself. "Congratulations on your new job!" does not fire.
+3. `MONEY`: a large amount with a currency marker ("$1 million", "USD 2.5 billion", "5 million dollars"). "2 million residents" does not fire.
+
+#### advance-fee-scheme (weight `W_ADVANCE_FEE_SCHEME` = 25)
+
+1. `ADVANCE_FEE_PHRASES`: "inheritance", "unclaimed funds", "unclaimed fund", "unclaimed money", "beneficiary", "processing fee", "release fee", "clearance fee", "pay a small fee to receive".
+2. `\btransfer\s+of\s+(?:the\s+sum\s+of\s+)?` + `MONEY` ("transfer of $4.5 million").
+
+#### financial-info-request (weight `W_FINANCIAL_INFO_REQUEST` = 30)
+
+```js
+NOT_NEGATED + \b(?:enter|provide|send|share|confirm|verify|update|reply\s+with|give|submit|type)\b + NEAR +
+\b(?:credit\s+card|debit\s+card|card\s+number|card\s+details|cvv|cvc|expiry\s+date|expiration\s+date|
+     bank\s+account|bank\s+details|account\s+number|routing\s+number|ssn|social\s+security)\b
+```
+
+The request verb must come first; a term alone ("Thanks for paying by credit card") never fires. A verb within 30 characters after a negation is skipped, so a bank's warning "We will never ask you to share your card number" does not fire. The evidence is the whole span, e.g. `Enter your credit card`.
+
+#### unusual-payment-method (weight `W_UNUSUAL_PAYMENT_METHOD` = 20)
+
+```js
+NOT_NEGATED + \b(?:pay|paying|payment|send|sending|transfer|buy|buying)\b + NEAR +
+\b(?:gift\s+card|giftcard|itunes\s+card|itunes\s+gift\s+card|google\s+play\s+card|google\s+play\s+gift\s+card|
+     bitcoin|btc|crypto|cryptocurrency|usdt|wire\s+transfer|western\s+union|moneygram)s?\b
+```
+
+A mobile wallet is an ordinary way to pay, so it only counts when a fee is part of the request: `PAYMENT_VERB + NEAR + (WALLET + NEAR + FEE | FEE + NEAR + WALLET)`, where `WALLET` is `mobile wallet|mobile money|e-wallet|ewallet` and `FEE` is `fees?`.
+
+#### secrecy-pressure (weight `W_SECRECY_PRESSURE` = 10)
+
+`SECRECY_PHRASES`: "do not tell anyone", "don't tell anyone", "do not tell anybody", "don't tell anybody", "keep this confidential", "keep this secret", "keep this between us", "keep it confidential", "keep it secret", "do not share this with anyone", "don't share this with anyone", "do not discuss this with anyone".
 
 ---
 
@@ -491,9 +551,26 @@ Every `RedFlag.explanation` is non-empty, jargon-free, and says what was found a
 | raw-ip-url | The link "{e}" goes to a string of numbers instead of a normal website name. Real companies almost never do this, and scammers use it to hide where the link leads. |
 | risky-tld | The link "{e}" ends in an address ending that is often used by throwaway scam websites. This alone is not proof, but be careful. |
 | link-text-mismatch | The link shows one website but actually opens a different one ({e}). Scammers do this to hide the real destination. |
-| urgency-en / urgency-bn | The message pressures you to act quickly ("{e}"). Scammers rush people so they do not stop to check. |
+| urgency-en | The message pressures you to act quickly ("{e}"). Scammers rush people so they do not stop to check. |
 | credential-request | The message asks for a password, PIN or one-time code ("{e}"). Real companies do not ask for these in messages. |
 | suspicious-attachment | The message mentions a file called "{e}", a type of file that can install harmful programs. Do not open it unless you are sure who sent it. |
+| prize-lottery | The message says you have won a prize or a large sum of money ("{e}"). Scammers promise prizes so you hand over money or personal details. You cannot win a draw you never entered. |
+| advance-fee-scheme | The message talks about an inheritance, unclaimed money or a fee you must pay to receive funds ("{e}"). This is a well-known scam: you pay the fee and the promised money never arrives. |
+| financial-info-request | The message asks you to give your card or bank details ("{e}"). Real banks and shops do not ask for these in a message, and anyone who has them can take your money. |
+| unusual-payment-method | The message asks you to pay with gift cards, cryptocurrency or a money-transfer service ("{e}"). Scammers ask for these because the money is hard to trace and almost never comes back. |
+| secrecy-pressure | The message tells you to keep it secret ("{e}"). Scammers do this so nobody you trust can warn you. |
+
+Cursed-phrase reasons (`CURSED_PHRASE_REASONS`):
+
+| id | reason |
+|---|---|
+| urgency-en | This phrase tries to rush you. Scammers rush people so they do not stop to check. |
+| credential-request | This asks for a password, PIN or one-time code. Real companies do not ask for these in messages. |
+| prize-lottery | This promises a prize or a big sum of money. Scammers use fake prizes as bait. |
+| advance-fee-scheme | This talks about money waiting for you or a fee to release it. The fee is the scam. |
+| financial-info-request | This asks for card or bank details. Real companies do not ask for these in messages. |
+| unusual-payment-method | This asks for payment that is hard to trace or get back, such as gift cards or cryptocurrency. |
+| secrecy-pressure | This asks you to keep a secret, so nobody can warn you it is a scam. |
 
 ---
 
@@ -513,9 +590,9 @@ Every `RedFlag.explanation` is non-empty, jargon-free, and says what was found a
 
 **P6: RiskResult shape.** For any valid call the result has exactly the fields `riskScore` (integer 0-100), `verdict`, `redFlags` (array), `cursedPhrases` (array), `confidence`. *Validates 1.8, 3.1.*
 
-**P7: RedFlag shape.** Every `redFlags` entry has a non-empty string `id`, a positive numeric `weight`, a non-empty string `evidence`, and a non-empty string `explanation` that contains no claim of safety. *Validates 2.17, 7.1, 7.2, 7.3, 8.2.*
+**P7: RedFlag shape.** Every `redFlags` entry has a non-empty string `id`, a positive numeric `weight`, a non-empty string `evidence`, and a non-empty string `explanation` that contains no claim of safety. *Validates 2.2, 7.1, 7.2, 7.3, 8.2.*
 
-**P8: CursedPhrase shape and population.** Every entry has non-empty `text` and `reason`, and `text` occurs in the input. When no credential-request, urgency-en or urgency-bn term occurs, `cursedPhrases` is empty. *Validates 3.2, 3.3, 3.4.*
+**P8: CursedPhrase shape and population.** Every entry has non-empty `text` and `reason`, and `text` occurs in the input. `cursedPhrases` is non-empty exactly when a phrase-producing signal fired (every Content signal except `suspicious-attachment`). *Validates 3.2, 3.3, 3.4.*
 
 **P9: One flag per signal.** The `id`s in `redFlags` are pairwise distinct. *Validates the one-flag-per-signal rule.*
 
@@ -525,7 +602,7 @@ Every `RedFlag.explanation` is non-empty, jargon-free, and says what was found a
 
 **P12: Confidence.** `confidence` is `"limited"` when `l3Score` is null or absent and `"full"` when it is a valid integer; never any other value. *Validates 6.1, 6.2, 11.7.*
 
-**P13: blend range.** For any valid `blend` inputs (l1 integer 0-100, l2Hit boolean, l3 integer 0-100 or null, flags Array or Set of strings), the result is an integer in [0, 100]. *Validates 4.10, 11.1.*
+**P13: blend range.** For any valid `blend` inputs (l1 integer 0-100, l2Hit boolean, l3 integer 0-100 or null, flags Array or Set of strings), the result is an integer in [0, 100]. *Validates 4.13, 11.1.*
 
 **P14: Pure-L1 floor.** With `l2Hit = false` and `l3Score = null`, `blend(...) >= l1Score`. *Validates 4.3, 11.2.*
 
@@ -535,11 +612,13 @@ Every `RedFlag.explanation` is non-empty, jargon-free, and says what was found a
 
 **P17: blend determinism and representation independence.** Two identical calls return the same value, and passing flags as an Array or as a Set returns the same value. *Validates 11.5.*
 
-**P18: Hard floors.** For any valid blend inputs: `typosquatting` + `credential-request` gives >= 70; `raw-ip-url` + `credential-request` gives >= 70; (`spf-fail` or `dkim-fail`) + `display-name-mismatch` gives >= 60; `credential-request` + (`urgency-en` or `urgency-bn`) gives >= 55; `suspicious-attachment` gives >= 40. *Validates 4.5-4.9.*
+**P18: Hard floors.** For any valid blend inputs: `typosquatting` + `credential-request` gives >= 70; `raw-ip-url` + `credential-request` gives >= 70; (`spf-fail` or `dkim-fail`) + `display-name-mismatch` gives >= 60; `credential-request` + `urgency-en` gives >= 55; `suspicious-attachment` gives >= 40; (`prize-lottery` or `advance-fee-scheme`) + (`financial-info-request` or `unusual-payment-method`) gives >= 70; `financial-info-request` gives >= 50; `unusual-payment-method` gives >= 40. *Validates 4.5-4.12.*
 
 **P19: verdictFor exhaustiveness.** For every integer 0-100 the result is exactly one of the three strings, with 0-30 `pookie`, 31-69 `skeptical`, 70-100 `poltergeist`. *Validates 5.1-5.4, 11.6.*
 
-**P20: Robustness (ReDoS).** For arbitrary strings of length <= 4000, and for adversarial strings built from repeated fragments (`"a."`, `"<a "`, `"["`, `"http://"`, `"From: "`, `"-"`, long runs of one character), `score` does not throw and returns within a generous time bound (for example 500 ms per call). *Validates 2.16.*
+**P20: Robustness (ReDoS).** For arbitrary strings of length <= 4000, and for adversarial strings built from repeated fragments (`"a."`, `"<a "`, `"["`, `"http://"`, `"From: "`, `"-"`, long runs of one character, and repeated request verbs, payment verbs, negations, money fragments and "congratulations" for the content proximity patterns), `score` does not throw and returns within a generous time bound (500 ms per call; measured worst case is about 2 ms at 4000 characters). A fixed list of hand-built worst cases for every bounded-gap regex runs in the same test. *Validates 2.20.*
+
+**P21: Scam signals.** For text built from scam and near-miss fragments (prize claims, card-detail requests, warnings that say "never share", gift-card and wallet payments, secrecy phrases), `score` returns an integer in [0, 100], is deterministic, and meets floors 4.10-4.12 whenever the matching flags fired. *Validates 2.15-2.19, 4.10-4.12.*
 
 ---
 
@@ -570,16 +649,19 @@ Vitest is the test runner and fast-check provides property-based testing (do not
 | 5 | `From: Galactibank Support <noreply@mail-alerts.invalid>` + newline + `Authentication-Results: mx.example.test; spf=fail smtp.mailfrom=mail-alerts.invalid` + blank line + `Please review your statement.` | display-name-mismatch, spf-fail | 40 (capped from 45) | floor 4.7 gives riskScore 60, `skeptical` |
 | 6 | `Meeting notes attached for review.` with `{ l2Hit: true }` | none | 0 | rule 4.1 gives `poltergeist`, riskScore 90 |
 | 7 | `Please send your password.` with `{ l3Score: 80 }` | credential-request | 20 | rule 4.2: round(0.55 x 20 + 0.45 x 80) = 47, `skeptical`, confidence `full` |
-| 8 | Bangla phrase from `URGENCY_BN_PHRASES` (`আপনার অ্যাকাউন্ট স্থগিত হবে`) followed by ` OTP পাঠান।` | urgency-bn, credential-request | 35 | floor 4.8 gives riskScore 55, `skeptical` |
+| 8 | `Act now: please confirm your password.` | urgency-en, credential-request | 35 | floor 4.8 gives riskScore 55, `skeptical` |
 | 9 | `Please open invoice.exe to see your order.` | suspicious-attachment | 20 | floor 4.9 gives riskScore 40, `skeptical` |
 | 10 | `Click <a href="http://phish.invalid/offer">http://galactibank.example</a> to see it.` | link-text-mismatch | 35 | `skeptical`, riskScore 35 |
+| 11 | `Congratulations! You have won $1 million. Enter your credit card details to get that money.` | prize-lottery, financial-info-request | 45 (capped from 55) | floor 4.10 gives `poltergeist`, riskScore 70 |
+| 12 | `Hi, it's your manager. I need a quick favour: buy four Google Play gift cards of $100 each and send me the codes within the hour. Do not tell anyone, it's a surprise for the team.` | unusual-payment-method, secrecy-pressure | 30 | floor 4.12 gives riskScore 40, `skeptical` |
+| 13 | `Dear friend, I am the lawyer of the late Mr Ostrander Vell, who left an inheritance with no heir. You are named as the beneficiary for the transfer of $4.5 million. To release the funds, pay the $300 clearance fee by wire transfer. Keep this confidential.` | prize-lottery, advance-fee-scheme, unusual-payment-method, secrecy-pressure | 45 (capped from 80) | floor 4.10 gives `poltergeist`, riskScore 70 |
 
 Each golden test asserts the exact verdict, the riskScore (exact where the arithmetic above fixes it), the exact set of flag ids, that `cursedPhrases` is non-empty exactly when a content signal fired, and the expected `confidence`.
 
 ### Edge-case unit tests (same file or `unit.test.js`)
 
 - `"I work with Node.js daily"` produces no `suspicious-attachment`.
-- `"visit গালাক্তিব্যাংক.example"` (pure Bangla hostname) produces no `homograph-punycode`.
+- `"visit галактибанк.example"` (pure Cyrillic hostname) produces no `homograph-punycode`.
 - `"http://bad.xyz/login"` produces `risky-tld` (trailing `/` accepted).
 - `"bad.xyz.example"` does not produce `risky-tld`.
 - `"http://203.0.113.5 click here"` produces `raw-ip-url` (space terminator).
@@ -599,6 +681,11 @@ Each golden test asserts the exact verdict, the riskScore (exact where the arith
 - `l3Score` exactly 0 and exactly 100 are accepted; boundary scores 30/31 and 69/70 map to the right verdicts.
 - Brand replacement: `score("http://zorbbank.example/x", { brands: [{ name: "zorbbank", domains: ["zorbbank.example"] }] })` produces no typosquatting, while a lookalike of that custom brand does.
 
+### Scam-signal unit tests (`content.test.js`)
+
+- Positives for every phrase in `PRIZE_PHRASES`, `ADVANCE_FEE_PHRASES` and `SECRECY_PHRASES`, plus the congratulations, money-amount, transfer-of, request-verb, payment-verb and wallet-fee patterns.
+- Benign counterexamples that must stay `pookie` and never fire `financial-info-request`, `unusual-payment-method` or `advance-fee-scheme`: "Thanks for paying by credit card", "Your order has shipped and will arrive on Tuesday.", "Congratulations on your new job!", a Galactibank statement notice that says it will never ask for card or bank details, an appointment reminder asking to confirm attendance, a refund sent back to a debit card, "$2 billion for new parks", a gift card bought as a present, "Happy anniversary!", and a bank statement attachment notice.
+
 ### Property tests (`property.test.js`)
 
 P13-P19 drive `blend` and `verdictFor` directly. P1-P12 and P20 drive `score`.
@@ -608,7 +695,7 @@ Arbitraries:
 - `l1Score`: `fc.integer({ min: 0, max: 100 })`
 - `l2Hit`: `fc.boolean()`
 - `l3Score`: `fc.oneof(fc.constant(null), fc.integer({ min: 0, max: 100 }))`
-- `flags`: `fc.array(fc.constantFrom(...ALL_13_SIGNAL_IDS))`, passed as an Array or wrapped in a `Set` (`fc.boolean()` chooses)
+- `flags`: `fc.array(fc.constantFrom(...ALL_SIGNAL_IDS))` (17 ids), passed as an Array or wrapped in a `Set` (`fc.boolean()` chooses)
 - invalid `l3Score`: `fc.oneof(fc.constant(NaN), fc.constant(Infinity), fc.constant(-Infinity), fc.double(), fc.integer({ max: -1 }), fc.integer({ min: 101 }), fc.string())`
 - non-string input: `fc.oneof(fc.integer(), fc.boolean(), fc.constant(null), fc.constant(undefined), fc.array(fc.anything()), fc.object())`
 - text input: `fc.string({ maxLength: 4000 })`, plus `fc.array(fc.constantFrom("a.", "<a ", "[", "http://", "From: ", "-", "xn--", " ")).map(a => a.join("")).filter(s => s.length <= 4000)` for P20
