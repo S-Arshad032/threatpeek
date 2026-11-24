@@ -2,31 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import { analyze, MAX_CHARS } from './api.js'
 import './App.css'
 
+const MESSAGE = 'Hi, I am Chithi, the peeker! Please check the text before getting hacked!'
+
 const moods = {
-  pookie: {
-    name: 'Pookie',
-    risk: 'Low risk',
-    line: 'Looks friendly to me!',
-    advice: 'Still, review the sender and any links before acting.',
-    notes: [[660, 0, 0.21], [880, 0.12, 0.24]],
-    wave: 'sine',
-  },
-  skeptical: {
-    name: 'Skeptical',
-    risk: 'Medium risk',
-    line: 'Hmm. Something feels off.',
-    advice: 'Review the warning signs before clicking or replying.',
-    notes: [[180, 0, 0.38], [145, 0.14, 0.32]],
-    wave: 'sine',
-  },
-  poltergeist: {
-    name: 'Poltergeist',
-    risk: 'High risk',
-    line: 'This message is haunted!',
-    advice: 'Avoid clicking links or sharing information. Verify the sender independently.',
-    notes: [[115, 0, 0.35, 65], [220, 0.21, 0.45, 90]],
-    wave: 'triangle',
-  },
+  pookie: { name: 'Pookie', risk: 'Low risk', say: "It's safe to respond.", advice: 'Still, review the sender and any links before acting.' },
+  skeptical: { name: 'Skeptical', risk: 'Medium risk', say: 'Think before responding.', advice: 'Review the warning signs before clicking or replying.' },
+  poltergeist: { name: 'Poltergeist', risk: 'High risk', say: "Please don't respond!", advice: 'Avoid clicking links or sharing information. Verify the sender independently.' },
+}
+
+const sounds = {
+  hello: { wave: 'triangle', peak: 0.09, notes: [[523, 0, 0.14], [659, 0.11, 0.14], [988, 0.22, 0.32]] },
+  pookie: { wave: 'sine', peak: 0.09, notes: [[523, 0, 0.2], [659, 0.09, 0.2], [784, 0.18, 0.2], [1046, 0.27, 0.45]] },
+  skeptical: { wave: 'triangle', peak: 0.09, notes: [[330, 0, 0.38, 250], [290, 0.32, 0.5, 380]] },
+  poltergeist: { wave: 'sawtooth', peak: 0.07, notes: [[110, 0, 0.6, 45], [82, 0.05, 0.7, 40]], noise: 0.6 },
+  poke: { wave: 'sine', peak: 0.1, notes: [[900, 0, 0.09, 1700], [1500, 0.08, 0.14, 800]] },
+  tick: { wave: 'square', peak: 0.03, notes: [[2400, 0, 0.03], [2200, 0.09, 0.03], [2600, 0.18, 0.03]] },
 }
 
 const drifters = [
@@ -51,13 +41,11 @@ function Backdrop() {
         <svg
           key={i}
           className="drifter"
-          viewBox="0 0 60 70"
+          viewBox="0 0 60 60"
           style={{ left: g.left, '--s': `${g.s}px`, '--d': `${g.d}s`, '--dl': `-${g.dl}s` }}
         >
-          <path d="M8 62V28a22 22 0 0 1 44 0v34l-8-6-7 7-7-7-7 7-7-7Z" fill="currentColor" />
-          <circle cx="22" cy="29" r="3" fill="#0d0817" />
-          <circle cx="38" cy="29" r="3" fill="#0d0817" />
-          <ellipse cx="30" cy="39" rx="4" ry="5" fill="#0d0817" />
+          <rect x="6" y="14" width="48" height="36" rx="5" fill="currentColor" />
+          <path d="m6 17 24 19 24-19" fill="none" stroke="#0d0817" strokeWidth="3" strokeLinejoin="round" />
         </svg>
       ))}
       {bats.map((b, i) => (
@@ -76,63 +64,152 @@ function Backdrop() {
   )
 }
 
-function Ghost({ verdict, busy }) {
+function Chithi({ mood = 'idle', busy, poked, greeting }) {
+  const angry = mood === 'poltergeist'
+  const eye = angry ? '#9c1030' : '#2a1622'
   return (
-    <svg className="ghost" viewBox="0 0 180 180" aria-hidden="true">
-      <path
-        className="ghost-body"
-        d="M34 140V82a56 56 0 0 1 112 0v58c0 10-10 14-17 8l-11-9-15 13a19 19 0 0 1-26 0l-15-13-11 9c-7 6-17 2-17-8Z"
-      />
-      <g className="face">
-        <g className={busy ? 'look scanning' : 'look'}>
-          {verdict === 'poltergeist' ? (
-            <g className="ghost-face">
-              <path d="m57 72 24 12-24 8Zm66 0-24 12 24 8Z" />
-              <ellipse className="mouth-yell" cx="90" cy="113" rx="15" ry="18" />
-            </g>
-          ) : verdict === 'skeptical' ? (
-            <g className="ghost-face">
-              <circle className="eye" cx="69" cy="86" r="6" />
-              <circle className="eye" cx="111" cy="86" r="6" />
-              <path className="ghost-line brow" d="m99 70 22-7" />
-              <path className="ghost-line" d="M82 109h16" />
-            </g>
-          ) : verdict === 'pookie' ? (
-            <g className="ghost-face">
-              <circle className="eye" cx="69" cy="84" r="6" />
-              <circle className="eye" cx="111" cy="84" r="6" />
-              <path className="ghost-line" d="M78 102q12 16 24 0" />
-              <circle className="ghost-cheek" cx="56" cy="101" r="7" />
-              <circle className="ghost-cheek" cx="124" cy="101" r="7" />
-            </g>
+    <svg className={`ghost${poked ? ' poked' : ''}${greeting ? ' hello' : ''}`} viewBox="0 0 200 200" aria-hidden="true">
+      <defs>
+        <linearGradient id="chithi-fade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset=".55" stopColor="currentColor" />
+          <stop offset="1" stopColor="currentColor" stopOpacity=".7" />
+        </linearGradient>
+      </defs>
+      <g transform="rotate(-5 100 100)">
+        <g transform="translate(38 124) rotate(-25)">
+          <rect className="arm arm-l" x="-32" y="-9" width="36" height="18" rx="9" fill="currentColor" />
+        </g>
+        <g transform="translate(162 124) rotate(25)">
+          <rect className="arm arm-r" x="-4" y="-9" width="36" height="18" rx="9" fill="currentColor" />
+        </g>
+        <path
+          className="envelope"
+          fill="url(#chithi-fade)"
+          d="M34 60Q34 38 56 38h88q22 0 22 22v82
+             C166 154 139 158 122 160
+             C134 171 122 194 94 194
+             C107 188 110 182 101 177
+             C91 172 82 172 75 164
+             C59 164 34 161 34 148Z"
+        />
+        <path
+          d="M105 167C114 164 123 167 122 174
+             C120 182 112 189 102 192
+             C111 185 110 180 103 176
+             C98 173 99 169 105 167Z"
+          fill="#fff"
+          opacity=".22"
+        />
+        <path d="M40 124 100 154l60-30" fill="none" stroke="#24142c" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity=".12" />
+        <g className="flap">
+          <path d="M34 60Q34 38 56 38h88q22 0 22 22L100 98Z" fill="#fff" opacity=".35" />
+          <path d="M40 54 100 96l60-42" fill="none" stroke="#d8bfe6" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+        <g className="ghost-face">
+          {poked ? (
+            <>
+              <path className="ghost-line" d="m64 104 16 8-16 8m76-16-16 8 16 8" />
+              <ellipse cx="100" cy="134" rx="7" ry="9" />
+            </>
           ) : (
-            <g className="ghost-face">
-              <circle className="eye" cx="69" cy="86" r={busy ? 9 : 7} />
-              <circle className="eye" cx="111" cy="86" r={busy ? 9 : 7} />
-              <ellipse cx="90" cy="108" rx="5" ry={busy ? 8 : 4} />
-            </g>
+            <>
+              <g className="eyes">
+                <g className={busy ? 'pupils scanning' : 'pupils'}>
+                  <ellipse cx="76" cy="112" rx="10" ry="13" fill={eye} />
+                  <ellipse cx="126" cy="112" rx="10" ry="13" fill={eye} />
+                  <g fill="#fff">
+                    <circle cx="80" cy="106" r="3.4" />
+                    <circle cx="130" cy="106" r="3.4" />
+                    <circle cx="73" cy="118" r="1.7" />
+                    <circle cx="123" cy="118" r="1.7" />
+                  </g>
+                </g>
+              </g>
+              {mood === 'skeptical' && (
+                <>
+                  <path d="M114 96h24v14h-24z" fill="currentColor" />
+                  <path className="ghost-line brow" d="M114 110h24M60 90q12-11 26-4" strokeWidth="3" />
+                  <path className="ghost-line" d="M88 136q8-5 16 0t14-2" strokeWidth="3" />
+                </>
+              )}
+              {angry && (
+                <>
+                  <path className="ghost-line" d="m60 94 26 10m80-10-26 10" strokeWidth="4" />
+                  <ellipse cx="102" cy="138" rx="14" ry="12" />
+                  <path d="m92 128 4 9 4-9zm12 0 4 9 4-9z" fill="#fff" />
+                </>
+              )}
+              {mood === 'pookie' && (
+                <>
+                  <path d="M86 128q14 22 28 0z" fill="#2a1622" />
+                  <ellipse cx="100" cy="138" rx="6" ry="3.5" fill="#ff7aa8" />
+                </>
+              )}
+              {mood === 'idle' && (
+                <>
+                  <path d="M92 130q8 12 16 0z" fill="#2a1622" />
+                  <ellipse cx="100" cy="135" rx="4" ry="2.5" fill="#ff7aa8" />
+                </>
+              )}
+              {(mood === 'idle' || mood === 'pookie') && (
+                <>
+                  <path className="ghost-line" d="M62 92q8-6 16-2M114 90q9-6 18 0" strokeWidth="3" />
+                  <path className="ghost-line" d="M56 136l6-3m-2 8 6-3m-2 8 6-3m62-10 6-3m-2 8 6-3m-2 8 6-3" strokeWidth="2.5" stroke="#ef9a8a" opacity=".8" />
+                </>
+              )}
+            </>
           )}
         </g>
+        <g className="monocle" fill="none" stroke="#c99a3b" strokeLinecap="round">
+          <circle cx="126" cy="112" r="20" strokeWidth="4" fill="rgba(255,255,255,.12)" />
+          <path d="M144 124q16 6 12 30" strokeWidth="2" />
+        </g>
       </g>
+      {busy && (
+        <g className="lens" transform="translate(70 108)">
+          <circle r="16" fill="rgba(255,255,255,.22)" stroke="#c99a3b" strokeWidth="4" />
+          <path d="m11 11 15 15" stroke="#8a5a2b" strokeWidth="6" strokeLinecap="round" />
+        </g>
+      )}
     </svg>
   )
 }
 
-function playVerdict(context, mood, volume) {
+function Spiders({ list }) {
+  return (
+    <div className="spiders" aria-hidden="true">
+      {list.map((sp) => (
+        <div key={sp.id} className="spider" style={{ left: sp.left, '--drop': sp.drop, '--dl': sp.delay, '--sz': sp.size }}>
+          <span className="thread" />
+          <svg className="spider-body" viewBox="0 0 40 40">
+            <path className="legs" d="M15 20 4 11m11 12L2 22m13 4L5 34m11-4-6 8m14-18 11-9m-11 12 13-1m-13 5 10 8m-9 0 6 8" fill="none" stroke="#c9a5ff" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="20" cy="26" r="9" fill="#5b3a86" />
+            <circle cx="20" cy="15" r="6" fill="#6d4a9c" />
+            <circle cx="18" cy="14" r="1.6" fill="#ff5d73" />
+            <circle cx="22.5" cy="14" r="1.6" fill="#ff5d73" />
+            <path d="m20 20 0 12" stroke="#ffb061" strokeWidth="2" />
+          </svg>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function playSound(context, volume, sound) {
   const start = context.currentTime + 0.02
 
-  for (const [pitch, offset, duration, endPitch] of mood.notes) {
+  for (const [pitch, offset, duration, endPitch] of sound.notes) {
     const oscillator = context.createOscillator()
     const envelope = context.createGain()
     const from = start + offset
     const to = from + duration
 
-    oscillator.type = mood.wave
+    oscillator.type = sound.wave
     oscillator.frequency.setValueAtTime(pitch, from)
     if (endPitch) oscillator.frequency.exponentialRampToValueAtTime(endPitch, to)
 
     envelope.gain.setValueAtTime(0, from)
-    envelope.gain.linearRampToValueAtTime(0.085, from + 0.035)
+    envelope.gain.linearRampToValueAtTime(sound.peak, from + Math.min(0.035, duration / 3))
     envelope.gain.exponentialRampToValueAtTime(0.001, to)
 
     oscillator.connect(envelope)
@@ -144,6 +221,25 @@ function playVerdict(context, mood, volume) {
 
     oscillator.start(from)
     oscillator.stop(to)
+  }
+
+  if (sound.noise) {
+    const length = Math.floor(context.sampleRate * sound.noise)
+    const buffer = context.createBuffer(1, length, context.sampleRate)
+    const data = buffer.getChannelData(0)
+    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1
+    const source = context.createBufferSource()
+    const filter = context.createBiquadFilter()
+    const gain = context.createGain()
+    source.buffer = buffer
+    filter.type = 'lowpass'
+    filter.frequency.value = 500
+    gain.gain.setValueAtTime(0.12, start)
+    gain.gain.exponentialRampToValueAtTime(0.001, start + sound.noise)
+    source.connect(filter)
+    filter.connect(gain)
+    gain.connect(volume)
+    source.start(start)
   }
 }
 
@@ -178,17 +274,28 @@ export default function App() {
   const soundEnabled = useRef(true)
   const input = useRef(null)
   const stage = useRef(null)
+  const flyer = useRef(null)
+  const helloPlayed = useRef(false)
+  const [phase, setPhase] = useState('intro')
+  const [typed, setTyped] = useState('')
+  const [flyRect, setFlyRect] = useState(null)
+  const [spiders, setSpiders] = useState([])
+  const [poked, setPoked] = useState(false)
+  const [home] = useState(() => {
+    const w = Math.min(280, window.innerWidth * 0.6, window.innerHeight * 0.36)
+    return { w, left: (window.innerWidth - w) / 2, top: Math.max(16, (window.innerHeight - w - 130) / 2) }
+  })
 
   const tooLong = text.length > MAX_CHARS
   const mood = result ? moods[result.verdict] : null
   const score = useCountUp(result ? result.riskScore : null)
   const verdict = result?.verdict
 
-  // Ghost eyes follow the pointer
+  // Chithi's eyes follow the pointer
   useEffect(() => {
     const move = (e) => {
-      const el = stage.current
-      if (!el) return
+      for (const el of [stage.current, flyer.current]) {
+        if (!el) continue
       const r = el.getBoundingClientRect()
       const dx = e.clientX - (r.left + r.width / 2)
       const dy = e.clientY - (r.top + r.height / 2)
@@ -196,6 +303,7 @@ export default function App() {
       const k = Math.min(d / 160, 1) * 6
       el.style.setProperty('--ex', `${(dx / d) * k}px`)
       el.style.setProperty('--ey', `${(dy / d) * k}px`)
+      }
     }
     window.addEventListener('pointermove', move)
     return () => window.removeEventListener('pointermove', move)
@@ -221,6 +329,84 @@ export default function App() {
     } catch {
       return Promise.resolve(null)
     }
+  }
+
+  function playNow(sound) {
+    const a = audio.current
+    if (a && soundEnabled.current && a.context.state === 'running') playSound(a.context, a.volume, sound)
+  }
+
+  function wake() {
+    if (helloPlayed.current) return
+    prepareAudio().then((a) => {
+      if (a && !helloPlayed.current) {
+        helloPlayed.current = true
+        playSound(a.context, a.volume, sounds.hello)
+      }
+    })
+  }
+
+  // Intro: Chithi greets, then flies to the result panel while the scanner pops in
+  useEffect(() => {
+    wake()
+  }, [])
+
+  useEffect(() => {
+    if (phase !== 'intro') return
+    let i = 0
+    let wait
+    const id = setInterval(() => {
+      i += 1
+      setTyped(MESSAGE.slice(0, i))
+      if (i % 2 === 0) playNow({ wave: 'triangle', peak: 0.04, notes: [[520 + Math.random() * 320, 0, 0.06]] })
+      if (i >= MESSAGE.length) {
+        clearInterval(id)
+        wait = setTimeout(startFly, 900)
+      }
+    }, 32)
+    return () => {
+      clearInterval(id)
+      clearTimeout(wait)
+    }
+  }, [phase])
+
+  function startFly() {
+    const r = stage.current?.getBoundingClientRect()
+    const visible = r && r.top < window.innerHeight - r.width / 2
+    setFlyRect(visible ? { left: r.left, top: r.top, width: r.width } : null)
+    setPhase('fly')
+  }
+
+  useEffect(() => {
+    if (phase !== 'fly') return
+    const t = setTimeout(() => setPhase('ready'), 1050)
+    return () => clearTimeout(t)
+  }, [phase])
+
+  function skip() {
+    setPhase('ready')
+  }
+
+  function poke() {
+    if (phase !== 'ready') return
+    setPoked(true)
+    setTimeout(() => setPoked(false), 600)
+    const n = 3 + Math.floor(Math.random() * 2)
+    const stamp = Date.now()
+    const batch = Array.from({ length: n }, (_, i) => ({
+      id: `${stamp}-${i}`,
+      left: `${8 + (i + Math.random() * 0.7) * (84 / n)}%`,
+      drop: `${14 + Math.random() * 40}vh`,
+      delay: `${i * 0.18}s`,
+      size: `${30 + Math.random() * 20}px`,
+    }))
+    setSpiders((list) => [...list, ...batch])
+    setTimeout(() => setSpiders((list) => list.filter((sp) => !batch.includes(sp))), 4700)
+    prepareAudio().then((a) => {
+      if (!a) return
+      playSound(a.context, a.volume, sounds.poke)
+      setTimeout(() => playSound(a.context, a.volume, sounds.tick), 220)
+    })
   }
 
   function toggleSound() {
@@ -257,7 +443,11 @@ export default function App() {
 
     let nextResult
     try {
-      nextResult = await analyze(text, { useAI: false })
+      const [res] = await Promise.all([
+        analyze(text, { useAI: false }),
+        new Promise((r) => setTimeout(r, 1400)),
+      ])
+      nextResult = res
       setResult(nextResult)
     } catch {
       setError('Could not analyze this message. Please try again.')
@@ -268,15 +458,16 @@ export default function App() {
     if (nextResult && moods[nextResult.verdict]) {
       void readyAudio.then((activeAudio) => {
         if (activeAudio && soundEnabled.current) {
-          playVerdict(activeAudio.context, moods[nextResult.verdict], activeAudio.volume)
+          playSound(activeAudio.context, activeAudio.volume, sounds[nextResult.verdict])
         }
       }).catch(() => {})
     }
   }
 
   return (
-    <div className="app" data-mood={verdict || 'idle'}>
+    <div className="app" data-mood={verdict || 'idle'} data-phase={phase}>
       <Backdrop />
+      <Spiders list={spiders} />
       <main className="shell">
         <header className="topbar">
           <span className="brand"><span aria-hidden="true">◈</span> ThreatPeek</span>
@@ -293,7 +484,7 @@ export default function App() {
 
         <section className="intro">
           <h1>What’s haunting your inbox?</h1>
-          <p>Paste a suspicious email or message. The ghost will tell you if it’s phishing.</p>
+          <p>Paste a suspicious email or message. Chithi will tell you if it’s phishing.</p>
         </section>
 
         <div className="dashboard">
@@ -350,14 +541,23 @@ export default function App() {
             aria-live="polite"
             aria-label="Scan result"
           >
-            <div className="stage" ref={stage}>
-              <Ghost verdict={verdict} busy={busy} />
+            <div key={mood ? verdict : busy ? 'busy' : 'idle'} className="bubble" role="status">
+              {mood ? mood.say : busy ? 'Peeking…' : 'Paste a message and I’ll peek!'}
             </div>
+            <button
+              type="button"
+              className="stage"
+              ref={stage}
+              onClick={poke}
+              disabled={phase !== 'ready'}
+              aria-label="Poke Chithi"
+            >
+              <Chithi mood={verdict || 'idle'} busy={busy} poked={poked} />
+            </button>
             {mood ? (
               <>
                 <p className="risk-label">{mood.risk}</p>
                 <h2>{mood.name}</h2>
-                <p className="line">{mood.line}</p>
                 <div className="score"><strong>{score}</strong> / 100</div>
                 <meter min="0" max="100" value={score} aria-label="Risk score" />
                 <p>{mood.advice}</p>
@@ -369,7 +569,8 @@ export default function App() {
             ) : (
               <>
                 <h2>{busy ? 'Peeking…' : 'Ready to peek'}</h2>
-                <p>{busy ? 'Checking the message for warning signs.' : 'Paste a message and press Peek. Your result will appear here.'}</p>
+                <p>{busy ? 'Checking the message for warning signs.' : 'Your result will appear here.'}</p>
+                <small>Psst… try poking Chithi.</small>
               </>
             )}
           </section>
@@ -396,6 +597,29 @@ export default function App() {
           </section>
         )}
       </main>
+
+      {phase !== 'ready' && (
+        <div className={`curtain is-${phase}`} onPointerDown={wake}>
+          <div className="veil" />
+          <div
+            ref={flyer}
+            className="flyer"
+            style={
+              phase === 'fly' && flyRect
+                ? flyRect
+                : phase === 'fly'
+                  ? { left: home.left, top: home.top, width: home.w, opacity: 0, transform: 'scale(.6)' }
+                  : { left: home.left, top: home.top, width: home.w }
+            }
+          >
+            <Chithi mood="idle" greeting={phase === 'intro'} />
+          </div>
+          <div className="bubble up intro-bubble" style={{ top: home.top + home.w + 14 }} aria-live="polite">
+            {typed}
+          </div>
+          <button className="secondary skip" type="button" onClick={skip}>Skip intro</button>
+        </div>
+      )}
     </div>
   )
 }

@@ -310,3 +310,182 @@ meter::-moz-meter-bar { background: var(--accent); }
   .drifter, .bat, .wing, .findings { animation: none !important; }
   .drifter, .bat { display: none; }
 }
+
+/* ================= Chithi, the peeker ================= */
+button.stage { display: block; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; border-radius: 50%; transition: transform .2s; }
+button.stage:disabled { opacity: 1; cursor: default; }
+button.stage:hover:enabled { transform: scale(1.04); }
+.app:not([data-phase="ready"]) .stage .ghost { visibility: hidden; }
+
+.sclera { fill: #fff; stroke: #24142c; stroke-width: 3; }
+.eyes { transform-box: fill-box; transform-origin: center; animation: blink 4.5s infinite; }
+.pupils { transform: translate(var(--ex, 0px), var(--ey, 0px)); transition: transform .12s ease-out; }
+.pupils.scanning { animation: scan .6s ease-in-out infinite alternate; }
+
+.arm { transform-box: fill-box; transform-origin: 50% 0; }
+.ghost.hello .arm-r { animation: wave .55s ease-in-out infinite alternate; }
+.result .ghost.poked, .flyer .ghost.poked { animation: squish .55s ease-out !important; }
+.lens { animation: lens .9s ease-in-out infinite alternate; }
+
+@keyframes wave { from { transform: rotate(0); } to { transform: rotate(-55deg); } }
+@keyframes squish {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.18, .78); }
+  60% { transform: scale(.9, 1.15) translateY(-26px); }
+  100% { transform: scale(1); }
+}
+@keyframes lens { from { transform: translate(70px, 96px); } to { transform: translate(128px, 96px); } }
+
+/* ---------- Speech bubble ---------- */
+.bubble {
+  position: relative;
+  max-width: 100%;
+  padding: 10px 18px;
+  border-radius: 18px;
+  background: #f5efff;
+  color: #24142c;
+  font-weight: 700;
+  animation: bubble .35s cubic-bezier(.2, 1.5, .4, 1);
+}
+.bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  margin-left: -9px;
+  border: 9px solid transparent;
+  border-bottom: 0;
+  border-top-color: #f5efff;
+}
+.bubble.up::after { bottom: auto; top: -9px; border-bottom: 9px solid #f5efff; border-top: 0; }
+@keyframes bubble { from { transform: scale(.6); opacity: 0; } }
+
+/* ---------- Intro: Chithi greets, then flies to the result panel ---------- */
+.curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(13, 8, 23, .88);
+  backdrop-filter: blur(8px);
+  transition: opacity .9s ease;
+}
+.curtain.is-fly { opacity: 0; pointer-events: none; }
+
+.flyer {
+  position: absolute;
+  aspect-ratio: 1;
+  color: #f5efff;
+  --ex: 0px;
+  --ey: 0px;
+  transition: left .95s cubic-bezier(.5, 0, .2, 1), top .95s cubic-bezier(.5, 0, .2, 1),
+    width .95s cubic-bezier(.5, 0, .2, 1), opacity .6s, transform .6s;
+}
+.flyer .ghost { color: #f5efff; }
+
+.intro-bubble {
+  position: absolute;
+  left: 50%;
+  translate: -50% 0;
+  width: min(460px, calc(100% - 32px));
+  min-height: 3.4em;
+  text-align: center;
+  animation: none;
+  transition: opacity .4s;
+}
+.curtain.is-fly .intro-bubble { opacity: 0; }
+.skip { position: absolute; right: 18px; bottom: 18px; }
+
+.app[data-phase="intro"] .composer { opacity: 0; transform: scale(.8); }
+.app[data-phase="intro"] .intro { opacity: 0; }
+.app[data-phase="fly"] .composer { animation: popin .8s .2s cubic-bezier(.2, 1.5, .4, 1) both; }
+.app[data-phase="fly"] .intro { animation: reveal .8s .2s ease-out both; }
+@keyframes popin { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: scale(1); } }
+
+/* ---------- Spiders ---------- */
+.spiders { position: fixed; inset: 0; z-index: 40; overflow: hidden; pointer-events: none; }
+.spider {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateY(-100%);
+  animation: dangle 4.2s ease-in-out var(--dl) both;
+}
+.thread { width: 1.5px; height: var(--drop); background: linear-gradient(rgba(255,255,255,.1), rgba(255,255,255,.75)); }
+.spider-body { width: var(--sz); transform-origin: 50% 0; animation: swing 1s ease-in-out infinite alternate; }
+.legs { transform-box: fill-box; transform-origin: center; animation: skitter .18s linear infinite alternate; }
+@keyframes dangle {
+  0% { transform: translateY(-100%); }
+  22% { transform: translateY(0); }
+  30% { transform: translateY(-7%); }
+  38%, 78% { transform: translateY(0); }
+  100% { transform: translateY(-100%); }
+}
+@keyframes swing { from { transform: rotate(-10deg); } to { transform: rotate(10deg); } }
+@keyframes skitter { to { transform: scale(1.12); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .eyes, .pupils.scanning, .ghost.hello .arm-r, .lens, .bubble, .spider-body, .legs { animation: none !important; }
+  .flyer { transition: none; }
+}
+
+/* ---------- Fix: only the dark veil fades, so Chithi stays visible while he flies ---------- */
+.curtain { background: none; backdrop-filter: none; transition: none; }
+.curtain.is-fly { opacity: 1; pointer-events: none; }
+.veil {
+  position: absolute;
+  inset: 0;
+  background: rgba(13, 8, 23, .88);
+  backdrop-filter: blur(8px);
+  transition: opacity .9s ease;
+}
+.curtain.is-fly .veil { opacity: 0; }
+.curtain.is-intro .flyer { animation: enter .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+@keyframes enter { from { opacity: 0; transform: translateY(50px) scale(.4); } }
+.flyer { z-index: 2; }
+.intro-bubble, .skip { z-index: 2; }
+
+/* Safari needs the prefixed blur */
+.veil, .panel { -webkit-backdrop-filter: blur(6px); }
+
+/* ================= Chithi, the envelope ================= */
+.flap, .letter { transform-box: fill-box; }
+.flap { transform-origin: 50% 100%; animation: flap-sway 3.2s ease-in-out infinite; }
+.letter { transform-origin: 50% 100%; animation: peek 3.2s ease-in-out infinite; }
+.result[data-mood="pookie"] .flap { animation: flap-happy .5s ease-in-out infinite alternate; }
+.result[data-mood="skeptical"] .flap { animation: none; transform: rotate(-14deg); }
+.result[data-mood="skeptical"] .letter { animation: none; transform: translateY(-3px) rotate(4deg); }
+.result[data-mood="poltergeist"] .flap { animation: flap-rage .14s linear infinite alternate; }
+.result[data-mood="poltergeist"] .letter { animation: none; transform: translateY(16px); }
+.result.busy .letter { animation-duration: .8s; }
+.result.busy .flap { animation-duration: .8s; }
+@keyframes flap-sway { 50% { transform: rotate(3deg) scaleY(.96); } }
+@keyframes peek { 50% { transform: translateY(-10px); } }
+@keyframes flap-happy { to { transform: scaleY(.82) rotate(-4deg); } }
+@keyframes flap-rage { from { transform: scaleY(1.1) rotate(-3deg); } to { transform: scaleY(.88) rotate(3deg); } }
+@keyframes lens { from { transform: translate(70px, 100px); } to { transform: translate(128px, 100px); } }
+@media (prefers-reduced-motion: reduce) { .flap, .letter { animation: none !important; } }
+
+/* ================= Chithi v2: tilted envelope with monocle ================= */
+.app { --ghost-color: #f6dfd0; }
+.app[data-mood="pookie"] { --ghost-color: #ffd5e4; }
+.app[data-mood="skeptical"] { --ghost-color: #f8dc9d; }
+.app[data-mood="poltergeist"] { --ghost-color: #ff9aa8; }
+.flyer .ghost { color: #f6dfd0; }
+
+.arm-r { transform-origin: 0 50%; }
+.arm-l { transform-origin: 100% 50%; }
+.tail { transform-box: fill-box; transform-origin: 50% 0; animation: tail 2.4s ease-in-out infinite; }
+.flap { transform-origin: 50% 0; }
+.result[data-mood="skeptical"] .flap { transform: rotate(-4deg); }
+.result.busy .flap { animation: flap-happy .35s ease-in-out infinite alternate; }
+.lens { animation: lens .9s ease-in-out infinite alternate; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35)); }
+@keyframes lens { from { transform: translate(66px, 108px); } to { transform: translate(134px, 108px); } }
+@keyframes tail { 50% { transform: rotate(9deg); } }
+@media (prefers-reduced-motion: reduce) { .tail { animation: none !important; } }
+
+/* Chithi v3: ghost-hem envelope, side arms (no tail, no wax seal) */
+.tail { animation: none; }
+.arm-r { transform-origin: 0 50%; }
+.arm-l { transform-origin: 100% 50%; }
