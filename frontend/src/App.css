@@ -489,3 +489,64 @@ button.stage:hover:enabled { transform: scale(1.04); }
 .tail { animation: none; }
 .arm-r { transform-origin: 0 50%; }
 .arm-l { transform-origin: 100% 50%; }
+
+/* ================= Sleeping intro: tap Chithi to wake him ================= */
+.curtain.is-sleep .flyer { animation: enter .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+.app[data-phase="sleep"] .composer { opacity: 0; transform: scale(.8); }
+.app[data-phase="sleep"] .intro { opacity: 0; }
+
+.wake-hint {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  translate: -50% 0;
+  width: min(460px, calc(100% - 32px));
+  text-align: center;
+  color: #ffd9a0;
+  font: 700 clamp(1.25rem, 4.2vw, 1.7rem)/1.2 Georgia, serif;
+  text-shadow: 0 0 22px rgba(255, 176, 97, .45);
+  animation: hint-glow 2.4s ease-in-out infinite;
+}
+
+button.wake {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+}
+button.wake:hover .ghost { filter: drop-shadow(0 0 30px #ffb061); }
+.ghost.asleep { animation: snooze 4.8s ease-in-out infinite; filter: drop-shadow(0 0 14px rgba(255, 176, 97, .35)); }
+.ghost.asleep .flap { animation-duration: 4.8s; }
+
+.zzz {
+  position: absolute;
+  top: 2%;
+  right: 4%;
+  color: #e9dcff;
+  font: italic 700 1.5rem/1 Georgia, serif;
+  pointer-events: none;
+}
+.zzz span { position: absolute; opacity: 0; animation: zzz 3.6s ease-out infinite; }
+.zzz span:nth-child(2) { animation-delay: 1.2s; font-size: 1.25em; }
+.zzz span:nth-child(3) { animation-delay: 2.4s; font-size: 1.5em; }
+
+@keyframes snooze { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(6px) rotate(1deg); } }
+@keyframes zzz {
+  0% { opacity: 0; transform: translate(0, 0) scale(.6); }
+  20% { opacity: .9; }
+  100% { opacity: 0; transform: translate(26px, -54px) scale(1); }
+}
+@keyframes hint-glow { 50% { opacity: .7; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .curtain.is-sleep .flyer, .curtain.is-intro .flyer, .wake-hint, .zzz span { animation: none !important; }
+  /* Static z z z, staggered so they still read as sleep */
+  .zzz span { opacity: .85; }
+  .zzz span:nth-child(2) { transform: translate(14px, -22px); }
+  .zzz span:nth-child(3) { transform: translate(30px, -48px); }
+}

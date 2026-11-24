@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { analyze, MAX_CHARS } from './api.js'
+import { cancelSpeech, preloadVoices, speak, unlockSpeech } from './voice.js'
 import './App.css'
 
 const MESSAGE = 'Hi, I am Chithi, the peeker! Please check the text before getting hacked!'
@@ -64,11 +65,11 @@ function Backdrop() {
   )
 }
 
-function Chithi({ mood = 'idle', busy, poked, greeting }) {
+function Chithi({ mood = 'idle', busy, poked, greeting, asleep }) {
   const angry = mood === 'poltergeist'
   const eye = angry ? '#9c1030' : '#2a1622'
   return (
-    <svg className={`ghost${poked ? ' poked' : ''}${greeting ? ' hello' : ''}`} viewBox="0 0 200 200" aria-hidden="true">
+    <svg className={`ghost${poked ? ' poked' : ''}${greeting ? ' hello' : ''}${asleep ? ' asleep' : ''}`} viewBox="0 0 200 200" aria-hidden="true">
       <defs>
         <linearGradient id="chithi-fade" x1="0" y1="0" x2="0" y2="1">
           <stop offset=".55" stopColor="currentColor" />
@@ -106,7 +107,13 @@ function Chithi({ mood = 'idle', busy, poked, greeting }) {
           <path d="M40 54 100 96l60-42" fill="none" stroke="#d8bfe6" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
         </g>
         <g className="ghost-face">
-          {poked ? (
+          {asleep ? (
+            <>
+              <path className="ghost-line" d="M64 110q12 9 24 0M114 110q12 9 24 0" strokeWidth="4" />
+              <ellipse cx="100" cy="136" rx="5" ry="4" />
+              <path className="ghost-line" d="M56 136l6-3m-2 8 6-3m62-8 6-3m-2 8 6-3" strokeWidth="2.5" stroke="#ef9a8a" opacity=".8" />
+            </>
+          ) : poked ? (
             <>
               <path className="ghost-line" d="m64 104 16 8-16 8m76-16-16 8 16 8" />
               <ellipse cx="100" cy="134" rx="7" ry="9" />
@@ -276,14 +283,16 @@ export default function App() {
   const stage = useRef(null)
   const flyer = useRef(null)
   const helloPlayed = useRef(false)
-  const [phase, setPhase] = useState('intro')
+  // sleep -> (tap) -> intro (greeting) -> fly -> ready
+  const [phase, setPhase] = useState('sleep')
   const [typed, setTyped] = useState('')
   const [flyRect, setFlyRect] = useState(null)
   const [spiders, setSpiders] = useState([])
   const [poked, setPoked] = useState(false)
   const [home] = useState(() => {
     const w = Math.min(280, window.innerWidth * 0.6, window.innerHeight * 0.36)
-    return { w, left: (window.innerWidth - w) / 2, top: Math.max(16, (window.innerHeight - w - 130) / 2) }
+    // Leave room above Chithi for the "Tap Chithi to wake him up" hint.
+    return { w, left: (window.innerWidth - w) / 2, top: Math.max(76, (window.innerHeight - w - 130) / 2 + 24) }
   })
 
   const tooLong = text.length > MAX_CHARS
@@ -346,11 +355,49 @@ export default function App() {
     })
   }
 
-  // Intro: Chithi greets, then flies to the result panel while the scanner pops in
+  function speechVolume() {
+    return audio.current ? audio.current.volume.gain.value : 1
+  }
+
+  // Voices load asynchronously; start early so they are ready by the first tap.
+  // Unmounting stops anything Chithi is still saying.
   useEffect(() => {
-    wake()
+    preloadVoices()
+    return cancelSpeech
   }, [])
 
+  // Chithi sleeps until tapped. Everything here runs inside the tap/keypress, which
+  // browsers (iOS/Safari especially) require before audio and speech may start.
+  function wakeUp() {
+    if (phase !== 'sleep') return
+    // Speaking the greeting inside the tap unlocks later utterances; when sound is
+    // off, a silent utterance unlocks them instead.
+    if (soundEnabled.current) speak(MESSAGE, { enabled: true, volume: speechVolume() })
+    else unlockSpeech()
+    wake()
+    setPhase('intro')
+  }
+
+  // Speak the verdict once per result (keyed on the result object, so re-renders
+  // do not repeat it). A new Peek, Clear or edit sets result to null, and the
+  // cleanup cancels speech in progress.
+  // PRIVACY: speak ONLY the fixed mood strings. Never the user's message, evidence,
+  // cursed phrases or flag explanations: some browsers send speech text to a cloud
+  // voice service, and the README promises the message never leaves the browser.
+  useEffect(() => {
+    const m = result && moods[result.verdict]
+    if (!m) return
+    // Let the verdict sting play first.
+    const t = setTimeout(() => {
+      speak(`${m.say} ${m.advice}`, { enabled: soundEnabled.current, volume: speechVolume() })
+    }, 650)
+    return () => {
+      clearTimeout(t)
+      cancelSpeech()
+    }
+  }, [result])
+
+  // Intro: Chithi greets, then flies to the result panel while the scanner pops in
   useEffect(() => {
     if (phase !== 'intro') return
     let i = 0
@@ -384,6 +431,8 @@ export default function App() {
   }, [phase])
 
   function skip() {
+    // Straight to the app, in silence.
+    cancelSpeech()
     setPhase('ready')
   }
 
@@ -415,6 +464,8 @@ export default function App() {
     setSoundOn(next)
 
     if (audio.current) audio.current.volume.gain.value = next ? 1 : 0
+    // The Sound toggle covers Chithi's voice too.
+    if (!next) cancelSpeech()
   }
 
   function updateText(value) {
@@ -437,6 +488,9 @@ export default function App() {
     if (busy || tooLong || !text.trim()) return
 
     const readyAudio = prepareAudio()
+    cancelSpeech()
+    // Still inside the click/keypress: unlock speech for users who skipped the intro.
+    if (soundEnabled.current) unlockSpeech()
     setBusy(true)
     setResult(null)
     setError('')
@@ -599,8 +653,11 @@ export default function App() {
       </main>
 
       {phase !== 'ready' && (
-        <div className={`curtain is-${phase}`} onPointerDown={wake}>
+        <div className={`curtain is-${phase}`}>
           <div className="veil" />
+          {phase === 'sleep' && (
+            <p className="wake-hint" style={{ top: home.top - 62 }}>Tap Chithi to wake him up</p>
+          )}
           <div
             ref={flyer}
             className="flyer"
@@ -612,11 +669,20 @@ export default function App() {
                   : { left: home.left, top: home.top, width: home.w }
             }
           >
-            <Chithi mood="idle" greeting={phase === 'intro'} />
+            {phase === 'sleep' ? (
+              <button type="button" className="wake" onClick={wakeUp} aria-label="Wake Chithi up" autoFocus>
+                <Chithi mood="idle" asleep />
+                <span className="zzz" aria-hidden="true"><span>z</span><span>z</span><span>z</span></span>
+              </button>
+            ) : (
+              <Chithi mood="idle" greeting={phase === 'intro'} />
+            )}
           </div>
-          <div className="bubble up intro-bubble" style={{ top: home.top + home.w + 14 }} aria-live="polite">
-            {typed}
-          </div>
+          {phase !== 'sleep' && (
+            <div className="bubble up intro-bubble" style={{ top: home.top + home.w + 14 }} aria-live="polite">
+              {typed}
+            </div>
+          )}
           <button className="secondary skip" type="button" onClick={skip}>Skip intro</button>
         </div>
       )}
