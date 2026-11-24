@@ -1,76 +1,122 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cancelSpeech, pickVoice, speak, unlockSpeech } from './voice.js'
+import { CLIPS, clipFailsafeMs, playClip, primeClip, stopClip, typingDelay } from './voice.js'
 
-const v = (name, lang) => ({ name, lang })
-
-describe('pickVoice()', () => {
-  it('prefers en-US over other English voices', () => {
-    const voices = [v('Daniel', 'en-GB'), v('Karen', 'en-AU'), v('Alex', 'en-US'), v('Thomas', 'fr-FR')]
-    expect(pickVoice(voices).name).toBe('Alex')
-  })
-
-  it('falls back to en-GB, then any en-*', () => {
-    expect(pickVoice([v('Karen', 'en-AU'), v('Daniel', 'en-GB')]).name).toBe('Daniel')
-    expect(pickVoice([v('Amélie', 'fr-CA'), v('Karen', 'en-AU')]).name).toBe('Karen')
-    expect(pickVoice([v('Rishi', 'en_IN')]).name).toBe('Rishi')
-  })
-
-  it('uses a female/natural-sounding name only as a tie-break', () => {
-    const voices = [v('Microsoft David', 'en-US'), v('Microsoft Zira', 'en-US')]
-    expect(pickVoice(voices).name).toBe('Microsoft Zira')
-    // Language still wins over a friendly name.
-    expect(pickVoice([v('Google UK English Female', 'en-GB'), v('Fred', 'en-US')]).name).toBe('Fred')
-  })
-
-  it('returns null for an empty list, no English voice, or bad input', () => {
-    expect(pickVoice([])).toBeNull()
-    expect(pickVoice([v('Anna', 'de-DE')])).toBeNull()
-    expect(pickVoice(undefined)).toBeNull()
-    expect(pickVoice([null, v('x', undefined)])).toBeNull()
+describe('CLIPS', () => {
+  it('maps the four clip names to /audio/<name>.mp3', () => {
+    expect(CLIPS).toEqual({
+      intro: '/audio/intro.mp3',
+      pookie: '/audio/pookie.mp3',
+      skeptical: '/audio/skeptical.mp3',
+      poltergeist: '/audio/poltergeist.mp3',
+    })
   })
 })
 
-describe('speak() without speech support', () => {
-  it('does nothing and never throws when speechSynthesis is undefined', () => {
-    expect(globalThis.speechSynthesis).toBeUndefined()
-    expect(() => speak('Hello', { enabled: true })).not.toThrow()
-    expect(speak('Hello', { enabled: true })).toBe(false)
-    expect(() => cancelSpeech()).not.toThrow()
-    expect(() => unlockSpeech()).not.toThrow()
+describe('playClip() without Audio support', () => {
+  it('never throws and resolves { played: false }', async () => {
+    expect(globalThis.Audio).toBeUndefined()
+    let pending
+    expect(() => { pending = playClip('intro', { enabled: true }) }).not.toThrow()
+    const result = await pending
+    expect(result.played).toBe(false)
+    expect(result.duration).toBeNull()
+    expect(await result.ended).toBe(false)
+    expect(() => stopClip()).not.toThrow()
+    expect(() => primeClip()).not.toThrow()
+  })
+
+  it('resolves { played: false } for an unknown clip or when disabled', async () => {
+    expect((await playClip('nope')).played).toBe(false)
+    expect((await playClip('pookie', { enabled: false })).played).toBe(false)
   })
 })
 
-describe('speak() with a stubbed speechSynthesis', () => {
-  afterEach(() => vi.unstubAllGlobals())
+describe('typingDelay()', () => {
+  it('finishes typing about 0.3 s before the clip ends', () => {
+    // 74 characters over 5.56 s - 0.3 s
+    expect(typingDelay(74, 5.56)).toBe(71)
+  })
 
-  function stub() {
-    const calls = []
-    const synth = {
-      getVoices: () => [v('Daniel', 'en-GB'), v('Samantha', 'en-US')],
-      addEventListener: vi.fn(),
-      cancel: vi.fn(() => calls.push('cancel')),
-      speak: vi.fn((u) => calls.push(u)),
+  it('clamps to 20-90 ms per character', () => {
+    expect(typingDelay(74, 0.5)).toBe(20)
+    expect(typingDelay(10, 30)).toBe(90)
+  })
+
+  it('falls back to the old speed when the duration is unknown', () => {
+    expect(typingDelay(74, null)).toBe(32)
+    expect(typingDelay(74, Number.NaN)).toBe(32)
+    expect(typingDelay(74, Infinity)).toBe(32)
+    expect(typingDelay(0, 5)).toBe(32)
+  })
+})
+
+describe('clipFailsafeMs()', () => {
+  it('waits duration + 0.5 s, at most 9 s', () => {
+    expect(clipFailsafeMs(5.56)).toBe(6060)
+    expect(clipFailsafeMs(12)).toBe(9000)
+    expect(clipFailsafeMs(null)).toBe(9000)
+  })
+})
+
+describe('playClip() with a stubbed Audio element', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.resetModules()
+  })
+
+  function stubAudio(play) {
+    const made = []
+    class FakeAudio {
+      constructor() {
+        this.listeners = {}
+        this.duration = Number.NaN
+        made.push(this)
+      }
+      addEventListener(type, fn) { (this.listeners[type] ??= new Set()).add(fn) }
+      removeEventListener(type, fn) { this.listeners[type]?.delete(fn) }
+      fire(type) { for (const fn of [...(this.listeners[type] ?? [])]) fn() }
+      play() { return play(this) }
+      pause() { this.paused = true }
     }
-    vi.stubGlobal('speechSynthesis', synth)
-    vi.stubGlobal('SpeechSynthesisUtterance', class { constructor(text) { this.text = text } })
-    return { synth, calls }
+    vi.stubGlobal('Audio', FakeAudio)
+    return made
   }
 
-  it('cancels first, then speaks with the cute voice settings', () => {
-    const { calls } = stub()
-    expect(speak("It's safe to respond.", { enabled: true, volume: 0.5 })).toBe(true)
-    expect(calls[0]).toBe('cancel')
-    const u = calls[1]
-    expect(u.text).toBe("It's safe to respond.")
-    expect(u.voice.name).toBe('Samantha')
-    expect(u.pitch).toBe(1.4)
-    expect(u.rate).toBe(1.05)
-    expect(u.volume).toBe(0.5)
+  it('plays through one shared element and reports the duration and end', async () => {
+    const made = stubAudio((el) => {
+      el.duration = 5.56
+      el.fire('loadedmetadata')
+      return Promise.resolve()
+    })
+    const voice = await import('./voice.js')
+    const first = await voice.playClip('intro', { volume: 0.5 })
+    expect(first.played).toBe(true)
+    expect(first.duration).toBe(5.56)
+    expect(made[0].src).toBe('/audio/intro.mp3')
+    expect(made[0].volume).toBe(0.5)
+    made[0].fire('ended')
+    expect(await first.ended).toBe(true)
+
+    await voice.playClip('pookie')
+    expect(made).toHaveLength(1)
+    expect(made[0].src).toBe('/audio/pookie.mp3')
   })
 
-  it('stays silent when disabled', () => {
-    const { synth } = stub()
-    expect(speak('Hello', { enabled: false })).toBe(false)
-    expect(synth.speak).not.toHaveBeenCalled()
+  it('resolves { played: false } when play() is blocked or the file is missing', async () => {
+    stubAudio(() => Promise.reject(new Error('NotAllowedError')))
+    const voice = await import('./voice.js')
+    const result = await voice.playClip('skeptical')
+    expect(result.played).toBe(false)
+    expect(await result.ended).toBe(false)
+  })
+
+  it('stopClip() pauses the element and settles ended as false', async () => {
+    const made = stubAudio(() => Promise.resolve())
+    const voice = await import('./voice.js')
+    const result = await voice.playClip('poltergeist')
+    expect(result.duration).toBeNull()
+    voice.stopClip()
+    expect(made[0].paused).toBe(true)
+    expect(await result.ended).toBe(false)
   })
 })

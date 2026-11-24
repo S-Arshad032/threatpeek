@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { analyze, MAX_CHARS } from './api.js'
-import { cancelSpeech, preloadVoices, speak, unlockSpeech } from './voice.js'
+import { clipFailsafeMs, playClip, primeClip, stopClip, typingDelay } from './voice.js'
 import './App.css'
 
 const MESSAGE = 'Hi, I am Chithi, the peeker! Please check the text before getting hacked!'
@@ -250,6 +250,13 @@ function playSound(context, volume, sound) {
   }
 }
 
+// How long a synth sound lasts until its last note (or noise burst) has faded, in ms.
+function soundLengthMs(sound) {
+  if (!sound) return 0
+  const notes = sound.notes.map(([, offset, duration]) => offset + duration)
+  return Math.ceil((Math.max(sound.noise || 0, ...notes) + 0.02) * 1000)
+}
+
 function useCountUp(target) {
   const [n, setN] = useState(0)
   useEffect(() => {
@@ -285,6 +292,8 @@ export default function App() {
   const helloPlayed = useRef(false)
   // sleep -> (tap) -> intro (greeting) -> fly -> ready
   const [phase, setPhase] = useState('sleep')
+  // How the intro clip went: null while starting, then { played, duration, ended }
+  const [introPlan, setIntroPlan] = useState(null)
   const [typed, setTyped] = useState('')
   const [flyRect, setFlyRect] = useState(null)
   const [spiders, setSpiders] = useState([])
@@ -355,67 +364,104 @@ export default function App() {
     })
   }
 
-  function speechVolume() {
+  function clipVolume() {
     return audio.current ? audio.current.volume.gain.value : 1
   }
 
-  // Voices load asynchronously; start early so they are ready by the first tap.
   // Unmounting stops anything Chithi is still saying.
-  useEffect(() => {
-    preloadVoices()
-    return cancelSpeech
-  }, [])
+  useEffect(() => stopClip, [])
 
-  // Chithi sleeps until tapped. Everything here runs inside the tap/keypress, which
-  // browsers (iOS/Safari especially) require before audio and speech may start.
+  // Chithi sleeps until tapped. playClip() calls play() synchronously, inside the
+  // tap/keypress, which browsers (iOS Safari especially) require before audio starts.
   function wakeUp() {
     if (phase !== 'sleep') return
-    // Speaking the greeting inside the tap unlocks later utterances; when sound is
-    // off, a silent utterance unlocks them instead.
-    if (soundEnabled.current) speak(MESSAGE, { enabled: true, volume: speechVolume() })
-    else unlockSpeech()
+    setIntroPlan(null)
+    let settled = false
+    let slow
+    const settle = (plan) => {
+      if (settled) return
+      settled = true
+      clearTimeout(slow)
+      setIntroPlan(plan)
+    }
+    // A clip that takes too long to start would talk over the fly: drop it and
+    // use the old timing instead.
+    slow = setTimeout(() => {
+      stopClip()
+      settle({ played: false })
+    }, 1500)
+    playClip('intro', { enabled: soundEnabled.current, volume: clipVolume() }).then((r) => {
+      settle(r.played ? { played: true, duration: r.duration, ended: r.ended } : { played: false })
+    })
     wake()
     setPhase('intro')
   }
 
-  // Speak the verdict once per result (keyed on the result object, so re-renders
-  // do not repeat it). A new Peek, Clear or edit sets result to null, and the
-  // cleanup cancels speech in progress.
-  // PRIVACY: speak ONLY the fixed mood strings. Never the user's message, evidence,
-  // cursed phrases or flag explanations: some browsers send speech text to a cloud
-  // voice service, and the README promises the message never leaves the browser.
+  // Play the verdict clip once per result (keyed on the result object, so
+  // re-renders do not repeat it). A new Peek, Clear or edit sets result to null,
+  // and the cleanup stops the clip.
+  // PRIVACY: only the fixed recorded clips are played, never anything derived
+  // from the user's message.
   useEffect(() => {
-    const m = result && moods[result.verdict]
-    if (!m) return
-    // Let the verdict sting play first.
+    const v = result?.verdict
+    if (!moods[v]) return
+    // Wait for the synth verdict sound to finish (it is under 1 s), and at least
+    // 400 ms, so the two never overlap.
     const t = setTimeout(() => {
-      speak(`${m.say} ${m.advice}`, { enabled: soundEnabled.current, volume: speechVolume() })
-    }, 650)
+      playClip(v, { enabled: soundEnabled.current, volume: clipVolume() })
+    }, Math.max(400, soundLengthMs(sounds[v]) + 60))
     return () => {
       clearTimeout(t)
-      cancelSpeech()
+      stopClip()
     }
   }, [result])
 
-  // Intro: Chithi greets, then flies to the result panel while the scanner pops in
+  // Intro: Chithi greets, then flies to the result panel while the scanner pops in.
+  // With the intro clip playing, typing is paced to end ~0.3 s before the clip, and
+  // the fly waits for the clip to end (failsafe: duration + 0.5 s, max 9 s).
+  // Without it (blocked, missing, Sound off), the old fixed timing is used.
   useEffect(() => {
-    if (phase !== 'intro') return
+    if (phase !== 'intro' || !introPlan) return
+    const withClip = introPlan.played
     let i = 0
     let wait
+    let failsafe
+    let cancelled = false
+    let typingDone = false
+    let clipDone = !withClip
+    const maybeFly = () => {
+      if (!cancelled && typingDone && clipDone) {
+        cancelled = true
+        startFly()
+      }
+    }
+    if (withClip) {
+      const finishClip = () => {
+        clipDone = true
+        maybeFly()
+      }
+      introPlan.ended.then(finishClip)
+      // This effect runs right after the clip starts, so time the failsafe from here.
+      failsafe = setTimeout(finishClip, clipFailsafeMs(introPlan.duration))
+    }
     const id = setInterval(() => {
       i += 1
       setTyped(MESSAGE.slice(0, i))
       if (i % 2 === 0) playNow({ wave: 'triangle', peak: 0.04, notes: [[520 + Math.random() * 320, 0, 0.06]] })
       if (i >= MESSAGE.length) {
         clearInterval(id)
-        wait = setTimeout(startFly, 900)
+        typingDone = true
+        if (withClip) maybeFly()
+        else wait = setTimeout(maybeFly, 900)
       }
-    }, 32)
+    }, withClip ? typingDelay(MESSAGE.length, introPlan.duration) : 32)
     return () => {
+      cancelled = true
       clearInterval(id)
       clearTimeout(wait)
+      clearTimeout(failsafe)
     }
-  }, [phase])
+  }, [phase, introPlan])
 
   function startFly() {
     const r = stage.current?.getBoundingClientRect()
@@ -432,7 +478,7 @@ export default function App() {
 
   function skip() {
     // Straight to the app, in silence.
-    cancelSpeech()
+    stopClip()
     setPhase('ready')
   }
 
@@ -465,7 +511,7 @@ export default function App() {
 
     if (audio.current) audio.current.volume.gain.value = next ? 1 : 0
     // The Sound toggle covers Chithi's voice too.
-    if (!next) cancelSpeech()
+    if (!next) stopClip()
   }
 
   function updateText(value) {
@@ -488,9 +534,14 @@ export default function App() {
     if (busy || tooLong || !text.trim()) return
 
     const readyAudio = prepareAudio()
-    cancelSpeech()
-    // Still inside the click/keypress: unlock speech for users who skipped the intro.
-    if (soundEnabled.current) unlockSpeech()
+    stopClip()
+    // The verdict clip can only start after the analysis (>= 1.4 s) and the synth
+    // sound, i.e. outside this click. iOS allows that only because the same shared
+    // <audio> element was played inside a gesture before: the wake tap, or this
+    // muted prime for users who skipped the intro. If iOS still refuses (e.g. Low
+    // Power Mode or the silent switch), the clip stays silent and the text result
+    // is unaffected.
+    if (soundEnabled.current) primeClip()
     setBusy(true)
     setResult(null)
     setError('')

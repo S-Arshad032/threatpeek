@@ -1,151 +1,160 @@
-// Chithi's voice: a thin, fail-safe wrapper around the browser's built-in
-// speechSynthesis. No audio files, no network code of our own.
+// Chithi's voice: four pre-recorded clips (the author's own voice, pitch-shifted),
+// served from our own origin and played through ONE shared <audio> element.
 //
-// PRIVACY: callers must only pass fixed, app-authored strings (the greeting and
-// the mood lines). Never pass the user's message, evidence, cursed phrases or
-// flag explanations. Some browsers send text to a cloud voice service to
-// synthesize it, and the README promises the pasted message never leaves the
-// browser.
+// PRIVACY: only these fixed clips are ever played. Nothing from the user's
+// message is spoken, synthesized or sent anywhere.
+//
+// iOS Safari allows an audio element to play outside a user gesture only after
+// that same element has played inside one. Reusing a single element means the
+// wake tap (or the Peek click, via primeClip) unlocks every later clip.
 
-const PITCH = 1.4
-const RATE = 1.05
+const BASE = import.meta.env?.BASE_URL ?? '/'
 
-// Tie-break only: names that suggest a female or natural-sounding voice,
-// spread across vendors (Apple, Microsoft, Google, eSpeak, ...).
-const FRIENDLY_NAME = /\b(female|woman|natural|neural|samantha|zira|aria|jenny|karen|moira|tessa|fiona|serena|libby|sonia|victoria)\b/i
+export const CLIPS = Object.freeze(
+  Object.fromEntries(
+    ['intro', 'pookie', 'skeptical', 'poltergeist'].map((name) => [name, `${BASE}audio/${name}.mp3`]),
+  ),
+)
 
-let cachedVoice = null
-let listening = false
+const NOT_PLAYED = Object.freeze({ played: false, duration: null, ended: Promise.resolve(false) })
+
+let element = null
+let token = 0
 let unlocked = false
-// Chrome can garbage-collect an utterance mid-sentence unless something holds it.
-let current = null
+// Settles the `ended` promise of the clip that is playing now.
+let finishCurrent = null
 
-function getSynth() {
+function getElement() {
+  if (element) return element
   try {
-    const synth = globalThis.speechSynthesis
-    if (!synth || typeof globalThis.SpeechSynthesisUtterance !== 'function') return null
-    return synth
+    if (typeof globalThis.Audio !== 'function') return null
+    element = new globalThis.Audio()
+    element.preload = 'auto'
+    return element
   } catch {
     return null
   }
 }
 
-function langRank(lang) {
-  const tag = String(lang || '').replace('_', '-').toLowerCase()
-  if (tag === 'en-us') return 3
-  if (tag === 'en-gb') return 2
-  if (tag === 'en' || tag.startsWith('en-')) return 1
-  return 0
+function knownDuration(el) {
+  const d = el?.duration
+  return Number.isFinite(d) && d > 0 ? d : null
 }
 
-/**
- * Pick the best English voice: en-US, then en-GB, then any en-*.
- * Within the same language, prefer a female/natural-sounding name.
- * Returns null when there is no English voice (or no voices yet).
- */
-export function pickVoice(voices) {
-  if (!Array.isArray(voices)) return null
-  let best = null
-  let bestScore = 0
-  for (const voice of voices) {
-    if (!voice) continue
-    const lang = langRank(voice.lang)
-    if (!lang) continue
-    const score = lang * 2 + (FRIENDLY_NAME.test(voice.name || '') ? 1 : 0)
-    if (score > bestScore) {
-      best = voice
-      bestScore = score
-    }
-  }
-  return best
-}
-
-function refreshVoice(synth) {
+/** Stop whatever clip is playing. Never throws. */
+export function stopClip() {
+  token += 1
+  const finish = finishCurrent
+  finishCurrent = null
+  if (finish) finish(false)
+  if (!element) return
   try {
-    cachedVoice = pickVoice(synth.getVoices())
-  } catch {
-    cachedVoice = null
-  }
-}
-
-/** Start loading voices early. They arrive asynchronously in most browsers. */
-export function preloadVoices() {
-  const synth = getSynth()
-  if (!synth) return
-  refreshVoice(synth)
-  if (listening) return
-  listening = true
-  const onChange = () => refreshVoice(synth)
-  try {
-    if (typeof synth.addEventListener === 'function') synth.addEventListener('voiceschanged', onChange)
-    else synth.onvoiceschanged = onChange
-  } catch {
-    // Voices will still be read again on the next speak().
-  }
-}
-
-function utter(synth, text, volume) {
-  synth.cancel()
-  const utterance = new globalThis.SpeechSynthesisUtterance(text)
-  if (cachedVoice) {
-    utterance.voice = cachedVoice
-    utterance.lang = cachedVoice.lang
-  } else {
-    utterance.lang = 'en-US'
-  }
-  utterance.pitch = PITCH
-  utterance.rate = RATE
-  utterance.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1))
-  utterance.onend = utterance.onerror = () => {
-    if (current === utterance) current = null
-  }
-  current = utterance
-  synth.speak(utterance)
-  unlocked = true
-}
-
-/**
- * Say a fixed, app-authored line in Chithi's voice.
- * Does nothing (and never throws) when disabled or unsupported.
- */
-export function speak(text, { enabled = true, volume = 1 } = {}) {
-  if (!enabled || !text) return false
-  const synth = getSynth()
-  if (!synth) return false
-  try {
-    preloadVoices()
-    if (!cachedVoice) refreshVoice(synth)
-    utter(synth, text, volume)
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
- * iOS/Safari only allow speech that starts inside a user gesture. Call this
- * from a tap handler: a silent, near-empty utterance unlocks later ones.
- */
-export function unlockSpeech() {
-  if (unlocked) return
-  const synth = getSynth()
-  if (!synth) return
-  try {
-    preloadVoices()
-    utter(synth, ' ', 0)
-  } catch {
-    // Unsupported or blocked: stay silent.
-  }
-}
-
-/** Stop anything Chithi is saying right now. */
-export function cancelSpeech() {
-  const synth = getSynth()
-  if (!synth) return
-  try {
-    synth.cancel()
+    element.pause()
+    element.currentTime = 0
   } catch {
     // ignore
   }
-  current = null
+}
+
+/**
+ * Play one of CLIPS. Call it synchronously inside a click/tap when you can:
+ * play() starts before this function returns.
+ *
+ * Resolves (never rejects) with:
+ *   played   - false when disabled, unsupported, missing (404), blocked or stopped
+ *   duration - seconds from loadedmetadata, or null if unknown
+ *   ended    - promise: true when the clip finished, false when stopped or failed
+ */
+export function playClip(name, { enabled = true, volume = 1 } = {}) {
+  const url = CLIPS[name]
+  if (!enabled || !url) return Promise.resolve(NOT_PLAYED)
+  const el = getElement()
+  if (!el) return Promise.resolve(NOT_PLAYED)
+
+  stopClip()
+  const mine = token
+  let duration = null
+
+  let resolveEnded
+  const ended = new Promise((resolve) => { resolveEnded = resolve })
+  const onMeta = () => { duration = knownDuration(el) }
+  const onEnded = () => finish(true)
+  const onError = () => finish(false)
+  function finish(ok) {
+    el.removeEventListener('loadedmetadata', onMeta)
+    el.removeEventListener('ended', onEnded)
+    el.removeEventListener('error', onError)
+    if (finishCurrent === finish) finishCurrent = null
+    resolveEnded(ok)
+  }
+  finishCurrent = finish
+
+  try {
+    el.addEventListener('loadedmetadata', onMeta)
+    el.addEventListener('ended', onEnded)
+    el.addEventListener('error', onError)
+    el.muted = false
+    el.volume = Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1))
+    el.src = url
+    const started = el.play()
+    return Promise.resolve(started)
+      .then(() => {
+        if (mine !== token) return NOT_PLAYED
+        unlocked = true
+        return { played: true, duration: duration ?? knownDuration(el), ended }
+      })
+      .catch(() => {
+        // Blocked by autoplay rules, 404, unsupported format, or interrupted by stopClip().
+        if (mine === token) finish(false)
+        return NOT_PLAYED
+      })
+  } catch {
+    finish(false)
+    return Promise.resolve(NOT_PLAYED)
+  }
+}
+
+/**
+ * Call inside a click when a clip will be played later, outside the gesture
+ * (the verdict clip starts after the analysis and the synth sound). If the
+ * shared element has never played, start it muted and pause it right away so
+ * iOS treats it as user-activated. No-op once any clip has played.
+ */
+export function primeClip() {
+  if (unlocked) return
+  const el = getElement()
+  if (!el) return
+  try {
+    stopClip()
+    const mine = token
+    el.muted = true
+    el.src = CLIPS.intro
+    Promise.resolve(el.play())
+      .then(() => {
+        unlocked = true
+        if (mine === token) el.pause()
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (mine === token) el.muted = false
+      })
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Bubble typing speed (ms per character) so typing ends ~0.3 s before the clip.
+ * Unknown duration -> the old fixed speed. Clamped to 20-90 ms per character.
+ */
+export function typingDelay(length, duration, { fallback = 32, min = 20, max = 90 } = {}) {
+  if (!(length > 0) || !Number.isFinite(duration) || duration <= 0) return fallback
+  const ms = ((duration - 0.3) * 1000) / length
+  return Math.round(Math.min(max, Math.max(min, ms)))
+}
+
+/** Failsafe wait for a clip's 'ended' event: duration + 0.5 s, never more than 9 s. */
+export function clipFailsafeMs(duration) {
+  if (!Number.isFinite(duration) || duration <= 0) return 9000
+  return Math.round(Math.min(duration + 0.5, 9) * 1000)
 }

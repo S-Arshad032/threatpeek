@@ -172,4 +172,6 @@ The Kiro spec covers only the engine. The server was planned in [docs/server-spe
 
 Built by a team of two for Kiroween 2026.
 
+Chithi's voice was recorded by the author and pitch-shifted. No third-party audio is used.
+
 Released under the [MIT License](LICENSE).
