@@ -12,7 +12,6 @@ const moods = {
 }
 
 const sounds = {
-  hello: { wave: 'triangle', peak: 0.09, notes: [[523, 0, 0.14], [659, 0.11, 0.14], [988, 0.22, 0.32]] },
   pookie: { wave: 'sine', peak: 0.09, notes: [[523, 0, 0.2], [659, 0.09, 0.2], [784, 0.18, 0.2], [1046, 0.27, 0.45]] },
   skeptical: { wave: 'triangle', peak: 0.09, notes: [[330, 0, 0.38, 250], [290, 0.32, 0.5, 380]] },
   poltergeist: { wave: 'sawtooth', peak: 0.07, notes: [[110, 0, 0.6, 45], [82, 0.05, 0.7, 40]], noise: 0.6 },
@@ -289,7 +288,6 @@ export default function App() {
   const input = useRef(null)
   const stage = useRef(null)
   const flyer = useRef(null)
-  const helloPlayed = useRef(false)
   // sleep -> (tap) -> intro (greeting) -> fly -> ready
   const [phase, setPhase] = useState('sleep')
   // How the intro clip went: null while starting, then { played, duration, ended }
@@ -349,21 +347,6 @@ export default function App() {
     }
   }
 
-  function playNow(sound) {
-    const a = audio.current
-    if (a && soundEnabled.current && a.context.state === 'running') playSound(a.context, a.volume, sound)
-  }
-
-  function wake() {
-    if (helloPlayed.current) return
-    prepareAudio().then((a) => {
-      if (a && !helloPlayed.current) {
-        helloPlayed.current = true
-        playSound(a.context, a.volume, sounds.hello)
-      }
-    })
-  }
-
   function clipVolume() {
     return audio.current ? audio.current.volume.gain.value : 1
   }
@@ -393,7 +376,7 @@ export default function App() {
     playClip('intro', { enabled: soundEnabled.current, volume: clipVolume() }).then((r) => {
       settle(r.played ? { played: true, duration: r.duration, ended: r.ended } : { played: false })
     })
-    wake()
+    // No synth sounds in the intro: the recorded clip is the only thing heard.
     setPhase('intro')
   }
 
@@ -447,7 +430,6 @@ export default function App() {
     const id = setInterval(() => {
       i += 1
       setTyped(MESSAGE.slice(0, i))
-      if (i % 2 === 0) playNow({ wave: 'triangle', peak: 0.04, notes: [[520 + Math.random() * 320, 0, 0.06]] })
       if (i >= MESSAGE.length) {
         clearInterval(id)
         typingDone = true
