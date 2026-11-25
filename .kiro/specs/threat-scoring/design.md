@@ -58,7 +58,8 @@ backend/engine/
     util/
       hostname.js        (hostname extractors, registrable-domain and brand-legitimacy helpers)
       levenshtein.js     (edit distance)
-      normalize.js       (content-text normalization with an offset map back to the original)
+      normalize.js       (content-text normalization with an offset map back to the original; refang())
+      links.js           (link finder for the content signals, URL-shortener check)
     detectors/
       identity.js
       link.js
@@ -73,10 +74,11 @@ backend/engine/
     property.test.js
     benchmark.test.js    (dev-set regression guard)
   benchmark/
-    dev.json             (60 labelled messages, used for tuning)
+    dev.json             (70 labelled messages, used for tuning)
     heldout.json         (40 different messages, never tuned on)
     heldout2.json        (30 different messages, credential/OTP focus, never tuned on)
-    lib.js, run.js       (`npm run benchmark [-- --set=dev|heldout|heldout2]`)
+    heldout3.json        ({ note, messages: [] }, reserved for 30 messages the rule author has not seen)
+    lib.js, run.js       (`npm run benchmark [-- --set=dev|heldout|heldout2|heldout3]`)
     RESULTS.md           (generated)
 ```
 
@@ -167,6 +169,13 @@ export const FLOOR_UNUSUAL_PAYMENT = 40;   // only with a pressure signal or a h
 export const FLOOR_CODE_SHARING   = 50;
 export const FLOOR_MISTAKEN_PAYMENT = 40;
 export const FLOOR_SECRET_REQUEST = 45; // 4.16, context.secretRequest
+export const FLOOR_DELIVERY_SCAM = 50;        // 4.17
+export const FLOOR_SEED_PHRASE = 70;          // 4.18
+export const FLOOR_INVESTMENT = 55;           // 4.19
+export const FLOOR_INVESTMENT_PRESSURE = 70;  // 4.19, with urgency-en or unusual-payment-method
+export const FLOOR_TASK_JOB = 50;             // 4.20
+export const FLOOR_OFFICIAL_FINE = 60;        // 4.21
+export const FLOOR_RECRUITER_BAIT = 50;       // 4.22
 
 // Content proximity windows (characters)
 export const REQUEST_PROXIMITY_CHARS = 60;
@@ -203,6 +212,9 @@ export const SIGNAL_CATEGORY = {
   "prize-lottery": "content", "advance-fee-scheme": "content", "financial-info-request": "content",
   "unusual-payment-method": "content", "secrecy-pressure": "content", "code-sharing-request": "content",
   "mistaken-payment": "content", "remote-access-request": "content",
+  "defanged-link": "link", "delivery-scam": "content", "seed-phrase-request": "content",
+  "investment-guarantee": "content", "task-job-scam": "content", "official-fine-threat": "content",
+  "recruiter-bait": "content",
 };
 export const RISKY_TLDS = ["xyz", "top", "click", "tk", "ml", "ga", "cf"]; // exactly Requirement 2.6
 export const DANGEROUS_EXTENSIONS = ["exe", "scr", "vbs", "bat", "cmd", "js", "lnk", "iso", "img"];
@@ -270,7 +282,7 @@ function score(input, options):
 
 **Safety floor.** The smallest single flag weight is 10 (`secrecy-pressure`), so any message with a flag has `l1Score >= 10`, and the `0.8 x l1Score` floor gives `riskScore >= 8 > 0` (Requirement 8.1).
 
-**Content cap.** The eleven Content signals add up to 245 points before the cap, and `CAP_CONTENT` stays at 45. Two strong content signals already reach the cap; the dangerous combinations are lifted further by the hard floors (4.8, 4.10-4.12, 4.14, 4.15), not by raising the cap. The engine never produces any wording that says a message is safe; `confidence: "limited"` tells the UI the result is a heuristics-only estimate (Requirement 8.3).
+**Content cap.** The seventeen Content signals add up to 405 points before the cap (with `delivery-scam` at its shortener weight 30), and `CAP_CONTENT` stays at 45. Two strong content signals already reach the cap; the dangerous combinations are lifted further by the hard floors (4.8, 4.10-4.12, 4.14, 4.15, 4.17-4.22), not by raising the cap. The Link cap stays at 35: `defanged-link` (10) plus `risky-tld` (15) is 25. The engine never produces any wording that says a message is safe; `confidence: "limited"` tells the UI the result is a heuristics-only estimate (Requirement 8.3).
 
 ---
 
@@ -303,11 +315,21 @@ function blend(l1Score, l2Hit, l3Score, flags, context = {}):
   if has("code-sharing-request"):                         risk = max(risk, FLOOR_CODE_SHARING)    // 4.14
   if has("mistaken-payment"):                             risk = max(risk, FLOOR_MISTAKEN_PAYMENT) // 4.15
   if context.secretRequest:                               risk = max(risk, FLOOR_SECRET_REQUEST)  // 4.16
+  if has("delivery-scam"):                                risk = max(risk, FLOOR_DELIVERY_SCAM)   // 4.17
+  if has("seed-phrase-request"):                          risk = max(risk, FLOOR_SEED_PHRASE)     // 4.18
+  if has("investment-guarantee"):
+    risk = max(risk, has("urgency-en") || has("unusual-payment-method")
+                     ? FLOOR_INVESTMENT_PRESSURE : FLOOR_INVESTMENT)                           // 4.19
+  if has("task-job-scam"):                                risk = max(risk, FLOOR_TASK_JOB)        // 4.20
+  if has("official-fine-threat"):                         risk = max(risk, FLOOR_OFFICIAL_FINE)   // 4.21
+  if has("recruiter-bait"):                               risk = max(risk, FLOOR_RECRUITER_BAIT)  // 4.22
 
   return Math.round(Math.min(100, Math.max(0, risk)))                                   // 4.13
 ```
 
 The 0.8 x L1 floor is applied before the hard floors; hard floors can only raise the score. Clamp and round are always last.
+
+Floors 4.17-4.22 rest only on the compound family signals (Requirement 2.26-2.31), each of which needs several cues in one message. The weak signals around them (`defanged-link` 10, `urgency-en` 15) have no floor, so one weak cue alone never lifts a message above 50. The levels follow how direct the harm is: a wallet recovery phrase is total, immediate loss (70); a fine with a legal threat and a payment link is a strong payment lure (60); delivery, task-job and recruiter lures are Skeptical (50), because real couriers and recruiters do send similar messages; investment promises sit at 55 and reach 70 only with pressure or a hard-to-trace payment.
 
 `context.paymentInstruction` comes from the content detector (`score()` passes it through). It is not a signal and has no weight: it only says the message names where to send the payment ("send it to me", "pay to this account", "send me the codes"). A gift card or crypto mentioned with no pressure and no instruction ("Buy a gift card for your mom") gets no floor and stays at 20.
 
@@ -404,9 +426,19 @@ All repetitions are bounded; negated classes stop at line ends and `<`.
 
 ---
 
+### Defanged links (`util/normalize.js`, Requirement 2.25)
+
+`DEFANG_RE` has four fixed alternatives: `[\[({]\s?(?:\.|dot)\s?[\])}]`; `(?<=[a-z0-9])(?<!\b(the|a|an|of|...))\s{1,3}dot\s{1,3}(?=SPACED_DOT_TLD\b)`; `\bhxxp(?=s?(:|\[:\])//)`; `(?<=\bhttps?|\bhxxps?)\[:\](?=//)`. `refang(input)` replaces them ("hxxp" -> "http" keeping case and length, "[:]" -> ":", the rest -> "."). `normalize()` runs the same regex as step 4 on its character array: a same-length replacement rewrites characters in place; a shorter one emits characters that all span the whole original piece, so `toOriginal` still points at "[.]". The link and identity detectors call `refang` first. `findDefang` returns the first piece for the `defanged-link` evidence, which is widened to the surrounding whitespace-free token (at most `MAX_DEFANG_EVIDENCE_CHARS` = 100 characters each side).
+
+`util/links.js` `findLinks(input)` refangs, then returns `{ text, host, shortener }` for each URL with a scheme, "www." host, or bare hostname whose ending is in `LINK_TLDS` (at most `MAX_HOSTNAMES_SCANNED`). `shortener` is true when the host is in `SHORTENER_DOMAINS`.
+
 ### link.js
 
-Signals: `raw-ip-url`, `risky-tld`, `link-text-mismatch`. All Link. Returns an empty `cursedPhrases`.
+Signals: `raw-ip-url`, `risky-tld`, `link-text-mismatch`, `defanged-link`. All Link. Returns an empty `cursedPhrases`. Every check except `defanged-link` reads `refang(input)`.
+
+#### defanged-link (weight `W_DEFANGED_LINK` = 10)
+
+Fires when `findDefang(input)` finds a piece; evidence is the disguised token from the original input. No floor.
 
 #### raw-ip-url (weight `W_RAW_IP_URL` = 35)
 
@@ -459,7 +491,7 @@ All inner groups are negated classes with explicit length caps; the HTML pattern
 
 ### content.js
 
-Signals: `urgency-en`, `credential-request`, `suspicious-attachment`, `prize-lottery`, `advance-fee-scheme`, `financial-info-request`, `unusual-payment-method`, `secrecy-pressure`, `code-sharing-request`, `mistaken-payment`, `remote-access-request`. All Content, English text only. Every signal except `suspicious-attachment` produces `cursedPhrases`. Flags are emitted in that order. Cursed phrases are collected in the same order (urgency, credential, then the scam signals), de-duplicated by lowercase text and limited to `MAX_CURSED_PHRASES` (20).
+Signals: `urgency-en`, `credential-request`, `suspicious-attachment`, `prize-lottery`, `advance-fee-scheme`, `financial-info-request`, `unusual-payment-method`, `secrecy-pressure`, `code-sharing-request`, `mistaken-payment`, `remote-access-request`, `delivery-scam`, `seed-phrase-request`, `investment-guarantee`, `task-job-scam`, `official-fine-threat`, `recruiter-bait`. All Content, English text only. Every signal except `suspicious-attachment` produces `cursedPhrases`. Flags are emitted in that order. Cursed phrases are collected in the same order (urgency, credential, then the scam signals), de-duplicated by lowercase text and limited to `MAX_CURSED_PHRASES` (20).
 
 **Normalization (`util/normalize.js`, Requirement 2.21).** All phrase signals match a normalized copy of the input: NFKC per base character plus its combining marks, lowercase, zero-width and control characters dropped, each whitespace run collapsed to one `" "` (or `"\n"` if it held a line break, so sentence boundaries survive), leetspeak mapped inside tokens of letters/digits/`@`/`$` that contain a letter (`LEET_MAP`: @→a, 0→o, 1→i, $→s, 3→e, 5→s; tokens with a currency symbol next to a digit, number-first tokens such as "10am" or "$1million" and letters+number codes such as "mp3" are left alone), and `SPACED_LETTERS_MIN` (4) or more single letters separated by single spaces joined. Every normalized character keeps the [start, end) span of the original characters it came from, so `toOriginal(start, end)` maps a match back and evidence/cursed phrases are slices of the original input. A second string, `cased`, has the same length and offsets but keeps letter case and leet symbols; the case-sensitive PIN/OTP regex runs on it. The attachment check, like the link and identity detectors, reads the raw input. Every step is one linear pass.
 
@@ -585,9 +617,22 @@ A claim (`(accidentally|mistakenly|wrongly) (sent|transferred|paid|credited|depo
 
 `NOT_GOVERNED + (install|download|run|open) + NEAR + (remote|screen-sharing) + up to 30 chars + (tool|app|application|software|program)`, or `(give|grant|allow) + NEAR + [remote] (access|control) (to|of) your (computer|pc|device|laptop|phone|screen)`, or `remote (access|control) (to|of) your (...)`. No floor: with a virus alarm (`urgency-en`) it reaches 40.
 
+#### Scam families (Requirement 2.26-2.31)
+
+Each family collects cue matches on the normalized text with bounded patterns and fires only when the required cues are all present; links come from `findLinks(input)`. Evidence is the first lead cue; every cue becomes a cursed phrase with the family's reason. Money uses `NUM = (?<![\d,.])\d[\d,.]{0,12}k?` with a currency marker (`MONEY_SYMBOLS` $ £ € ₹ before, or `MONEY_CODES` usd/usdt/bdt/tk/taka/... after; the taka sign is in the Bengali block, so the engine stays English-only and uses the codes).
+
+| Signal | Weight | Fires when |
+|---|---|---|
+| `delivery-scam` | 25 (30 with a shortener) | `DELIVERY_FAILURE_RE` (not-delivered phrase, item + failed state, bad-address phrase, or `NOT_GOVERNED` update verb + delivery details) AND a `DELIVERY_CONTEXT_WORDS` word AND a link |
+| `seed-phrase-request` | 35 | `NOT_GOVERNED` + not after can/could/will/able to + `SEED_REQUEST_VERBS` + NEAR + seed term or "N-word"; OR (with a link) `WALLET_FIX_VERBS` + [your] [word] + wallet word |
+| `investment-guarantee` | 25 | a promise (not after `PROMISE_NEGATIONS`): promise phrase, guaranteed/assured + [word] + result word, "turn/grow $X into $Y", "N% daily/weekly"; AND an `INVESTMENT_CONTEXT_PHRASES` match outside the promise |
+| `task-job-scam` | 25 | WORK + one of PAY/EASY/REPLY, or PAY + EASY + REPLY |
+| `official-fine-threat` | 25 | `FINE_TERMS` AND a `NOT_GOVERNED` pay verb AND pressure (deadline, "today/immediately...", legal threat, "to avoid ...") AND a link |
+| `recruiter-bait` | 20 | recruiter intro or title AND `JOB_WORDS` AND a document (`JOB_DOC_WORDS` or a doc part in the link) AND a link outside `RECRUITER_TRUSTED_DOMAINS` |
+
 #### urgency-en phrase families
 
-Besides `URGENCY_EN_PHRASES` (10 phrases, unchanged): `URGENCY_EXTRA_PHRASES` ("urgent", "urgently", "final notice", "final warning", "pay now", "security breach", "virus(es) detected", "infected with", "or it will be returned/deleted/closed"); "to avoid" + `URGENCY_AVOID_THREATS`; `LOCKABLE_THINGS` [one word] `LOCK_STATE_VERBS` `LOCKED_WORDS` and `LOCKED_WORDS your LOCKABLE_THINGS`; `DEVICE_WORDS (has been|have been|is|was|may be) (infected|hacked|compromised)`; `within [the next] \d{1,3} (hours|hour|hrs|minutes|mins)`; `only \d{1,3} (spots|places|slots|seats) (left|remaining)`; `IMMEDIACY_VERBS + up to 40 chars (same sentence) + (immediately|right away|asap)`.
+Besides `URGENCY_EN_PHRASES` (10 phrases, unchanged): `URGENCY_EXTRA_PHRASES` ("urgent", "urgently", "final notice", "final warning", "pay now", "security breach", "virus(es) detected", "infected with", "or it will be returned/deleted/closed"); "to avoid" + `URGENCY_AVOID_THREATS`; `LOCKABLE_THINGS` [one word] `LOCK_STATE_VERBS` `LOCKED_WORDS` and `LOCKED_WORDS your LOCKABLE_THINGS`; `DEVICE_WORDS (has been|have been|is|was|may be) (infected|hacked|compromised)`; `within [the next] \d{1,3} (hours|hour|hrs|minutes|mins)`; and, not right after a `DEADLINE_NOT_AFTER` word (expires, arrives, processed, shipped, ready, back to you...), `within [the next] \d{1,3} (hr|days|day)` and `in [the next] \d{1,3} (hours|hour|hrs|hr)`; "limited spots/slots", "spots/slots left"; `only \d{1,3} (spots|places|slots|seats) (left|remaining)`; `IMMEDIACY_VERBS + up to 40 chars (same sentence) + (immediately|right away|asap)`.
 
 `credential-request` now also matches "passwords".
 
@@ -633,6 +678,8 @@ Every `RedFlag.explanation` is non-empty, jargon-free, and says what was found a
 | code-sharing-request | The message asks you to pass on a code that was sent to you ("{e}"). That code is the key to your account: whoever has it can sign in as you or approve payments. |
 | mistaken-payment | The message says money was sent to you by mistake and asks you to send it back ("{e}"). This is a common trick: the first payment is fake or gets reversed, and the money you send is lost. |
 | remote-access-request | The message asks you to install a remote-control program or give someone access to your device ("{e}"). Whoever controls your device can see your screen, your passwords and your bank. |
+| defanged-link | The link "{e}" is written in a disguised way (for example "[.]" or "dot" instead of a dot). Scammers do this to slip links past spam filters. Treat it like a real link and do not open it. |
+| delivery-scam, seed-phrase-request, investment-guarantee, task-job-scam, official-fine-threat, recruiter-bait | See `EXPLANATION_TEMPLATES` in `config.js`: each says what the message does, quotes the evidence, and says why it is a known scam pattern. |
 
 Cursed-phrase reasons (`CURSED_PHRASE_REASONS`):
 
@@ -648,6 +695,12 @@ Cursed-phrase reasons (`CURSED_PHRASE_REASONS`):
 | code-sharing-request | This asks you to pass on a code sent to you. Never give these codes to anyone. |
 | mistaken-payment | This claims money was sent to you by mistake and asks for it back. The first payment is usually fake. |
 | remote-access-request | This asks for control of your device. Never let a stranger connect to it. |
+| delivery-scam | This is the classic fake delivery problem. Check the parcel in the courier's own app, not through a link. |
+| seed-phrase-request | This asks for your wallet recovery words. Whoever has them owns your crypto. |
+| investment-guarantee | This promises certain or multiplied profit. Real investments never guarantee returns. |
+| task-job-scam | This offers easy money for simple online tasks. These jobs end with you paying them. |
+| official-fine-threat | This demands a fine or tax through a link, with a threat. Officials do not collect fines this way. |
+| recruiter-bait | This is an unsolicited job offer with a link to a document. Check the recruiter before opening it. |
 
 ---
 
@@ -689,7 +742,7 @@ Cursed-phrase reasons (`CURSED_PHRASE_REASONS`):
 
 **P17: blend determinism and representation independence.** Two identical calls return the same value, and passing flags as an Array or as a Set returns the same value. *Validates 11.5.*
 
-**P18: Hard floors.** For any valid blend inputs: `typosquatting` + `credential-request` gives >= 70; `raw-ip-url` + `credential-request` gives >= 70; (`spf-fail` or `dkim-fail`) + `display-name-mismatch` gives >= 60; `credential-request` + `urgency-en` gives >= 55; `suspicious-attachment` gives >= 40; (`prize-lottery` or `advance-fee-scheme`) + (`financial-info-request` or `unusual-payment-method`) gives >= 70; `financial-info-request` gives >= 50; `unusual-payment-method` + (`urgency-en` or `secrecy-pressure`) gives >= 40; `code-sharing-request` gives >= 50; `mistaken-payment` gives >= 40; `context.secretRequest` gives >= 45. *Validates 4.5-4.12, 4.14-4.16.* (The 4.12 case with `context.paymentInstruction` and the "alone has no floor" case are unit tests in `blend.test.js`.)
+**P18: Hard floors.** For any valid blend inputs: `typosquatting` + `credential-request` gives >= 70; `raw-ip-url` + `credential-request` gives >= 70; (`spf-fail` or `dkim-fail`) + `display-name-mismatch` gives >= 60; `credential-request` + `urgency-en` gives >= 55; `suspicious-attachment` gives >= 40; (`prize-lottery` or `advance-fee-scheme`) + (`financial-info-request` or `unusual-payment-method`) gives >= 70; `financial-info-request` gives >= 50; `unusual-payment-method` + (`urgency-en` or `secrecy-pressure`) gives >= 40; `code-sharing-request` gives >= 50; `mistaken-payment` gives >= 40; `context.secretRequest` gives >= 45. *Validates 4.5-4.12, 4.14-4.16.* Floors 4.17-4.22 (and "defanged-link / urgency-en alone have no floor") are unit tests in `blend.test.js`. (The 4.12 case with `context.paymentInstruction` and the "alone has no floor" case are unit tests in `blend.test.js`.)
 
 **P19: verdictFor exhaustiveness.** For every integer 0-100 the result is exactly one of the three strings, with 0-30 `pookie`, 31-69 `skeptical`, 70-100 `poltergeist`. *Validates 5.1-5.4, 11.6.*
 
@@ -763,6 +816,13 @@ Each golden test asserts the exact verdict, the riskScore (exact where the arith
 - Positives for every phrase in `PRIZE_PHRASES`, `ADVANCE_FEE_PHRASES` and `SECRECY_PHRASES`, plus the congratulations, money-amount, transfer-of, request-verb, payment-verb and wallet-fee patterns.
 - Benign counterexamples that must stay `pookie` and never fire `financial-info-request`, `unusual-payment-method` or `advance-fee-scheme`: "Thanks for paying by credit card", "Your order has shipped and will arrive on Tuesday.", "Congratulations on your new job!", a Galactibank statement notice that says it will never ask for card or bank details, an appointment reminder asking to confirm attendance, a refund sent back to a debit card, "$2 billion for new parks", a gift card bought as a present, "Happy anniversary!", and a bank statement attachment notice.
 
+### Scam-family tests (`scam-families.test.js`, `defang.test.js`)
+
+- The six reference messages reach their targets (recruiter >= 50, investment >= 70, seed phrase >= 70, fine >= 60, task job >= 50, delivery >= 50) with their family signal; the ambiguous new-device sign-in notice has no flag.
+- Three paraphrases per family fire the family signal and score >= 50.
+- Negatives stay below 30: delivered/shipped notices, a due electricity bill, a full-time job ad, an OTP delivery, "Never share your 12-word recovery phrase", plus a near miss per family (warnings, "does not guarantee future returns", part-time cashier pay, a paid parking ticket receipt, a recruiter with no link, "arrives in 24 hours").
+- Refang cases (brackets, "dot", hxxp, [:]), prose left alone, offsets mapped back, risky-tld/raw-ip/typosquatting on defanged links.
+
 ### Property tests (`property.test.js`)
 
 P13-P19 drive `blend` and `verdictFor` directly. P1-P12 and P20 drive `score`.
@@ -772,7 +832,7 @@ Arbitraries:
 - `l1Score`: `fc.integer({ min: 0, max: 100 })`
 - `l2Hit`: `fc.boolean()`
 - `l3Score`: `fc.oneof(fc.constant(null), fc.integer({ min: 0, max: 100 }))`
-- `flags`: `fc.array(fc.constantFrom(...ALL_SIGNAL_IDS))` (20 ids), passed as an Array or wrapped in a `Set` (`fc.boolean()` chooses)
+- `flags`: `fc.array(fc.constantFrom(...ALL_SIGNAL_IDS))` (27 ids), passed as an Array or wrapped in a `Set` (`fc.boolean()` chooses)
 - invalid `l3Score`: `fc.oneof(fc.constant(NaN), fc.constant(Infinity), fc.constant(-Infinity), fc.double(), fc.integer({ max: -1 }), fc.integer({ min: 101 }), fc.string())`
 - non-string input: `fc.oneof(fc.integer(), fc.boolean(), fc.constant(null), fc.constant(undefined), fc.array(fc.anything()), fc.object())`
 - text input: `fc.string({ maxLength: 4000 })`, plus `fc.array(fc.constantFrom("a.", "<a ", "[", "http://", "From: ", "-", "xn--", " ")).map(a => a.join("")).filter(s => s.length <= 4000)` for P20
