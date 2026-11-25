@@ -25,14 +25,14 @@ ThreatPeek checks a message in three layers. Only the first one is needed. The a
 - Plain JavaScript with no dependencies, no network calls and no browser or Node.js APIs. The browser and the server share the same code ([backend/engine](backend/engine)).
 - **Deterministic:** the same text always gives the same result.
 - **Explainable:** every point of the score comes from a named signal, and each signal comes with the text that triggered it and a plain-English explanation.
-- **20 signals in 4 groups** (English text only):
+- **27 signals in 4 groups** (English text only):
   - **Identity:** look-alike domains (typosquatting), disguised letters (homograph / punycode), and sender names that don't match the address.
   - **Email auth headers:** SPF, DKIM or DMARC failures, if headers are pasted.
-  - **Links:** links to a bare IP address, risky domain endings, and link text that points somewhere else.
-  - **Content:** urgency, requests for passwords or codes, risky attachments, prize and lottery bait (including "guaranteed returns"), inheritance and advance-fee stories (including "pay a small fee to release your parcel"), requests for card or bank details, payment by gift card, crypto or money transfer, requests to keep the message secret, requests to pass on a one-time code, "I sent you money by mistake, please send it back", and requests for remote access to your device.
+  - **Links:** links to a bare IP address, risky domain endings, link text that points somewhere else, and disguised ("defanged") links such as `evil[.]com` or `hxxps://`. Disguised links are turned back into real links first, so every other link check still sees them.
+  - **Content:** urgency, requests for passwords or codes, risky attachments, prize and lottery bait (including "guaranteed returns"), inheritance and advance-fee stories (including "pay a small fee to release your parcel"), requests for card or bank details, payment by gift card, crypto or money transfer, requests to keep the message secret, requests to pass on a one-time code, "I sent you money by mistake, please send it back", and requests for remote access to your device. Six scam families each need several clues in the same message: a failed-delivery notice with a link, a request for a crypto wallet's recovery phrase, guaranteed or multiplied investment returns, paid "like videos" or "rate products" task jobs, a fine or tax demand with a deadline or threat and a link, and an unsolicited recruiter sending a "brief" on an unfamiliar link.
 - **Sees through simple disguises:** before the content checks, the text is normalized (Unicode, upper/lower case, hidden zero-width characters, l33t spellings like "p@ssw0rd", and s p a c e d - o u t letters). The red-flag cards still quote your original text.
 - **Caps:** each group has a maximum (identity/auth 40, links 35, content 45), so one kind of signal cannot take over the score.
-- **Floors:** dangerous combinations get a minimum score. For example, a look-alike domain plus a password request always scores at least 70, and so does a prize or inheritance story combined with a request for card details or gift-card payment. A request for card or bank details, or a request to pass on a one-time code, scores at least 50 on its own. A gift-card or crypto payment scores at least 40 only when it comes with pressure (urgency, secrecy, a prize or a fee) or an instruction to send it somewhere, so "Buy a gift card for your mom" stays low.
+- **Floors:** dangerous combinations get a minimum score. For example, a look-alike domain plus a password request always scores at least 70, and so does a prize or inheritance story combined with a request for card details or gift-card payment. A request for card or bank details, or a request to pass on a one-time code, scores at least 50 on its own. A gift-card or crypto payment scores at least 40 only when it comes with pressure (urgency, secrecy, a prize or a fee) or an instruction to send it somewhere, so "Buy a gift card for your mom" stays low. The scam families have floors too: a wallet recovery-phrase request scores at least 70, a fine demand 60, an investment "guarantee" 55 (70 with pressure), and a failed-delivery link, a task job or a recruiter's document link 50. Each of these needs several clues together, so no single weak clue lifts a message above 50.
 - The score maps to the ghost: 0–30 Pookie, 31–69 Skeptical, 70–100 Poltergeist.
 
 Weights, caps, floors and word lists are all in [backend/engine/src/config.js](backend/engine/src/config.js).
@@ -77,7 +77,19 @@ The numbers above were measured on 23 November 2026.
 
 The first held-out set did not change (65% flagged, 15% high risk, 0% false alarms), and neither did any of its 40 scores. The dev set is now 70 messages: 94% of scams flagged, no false alarms. Held-out set 2 still misses 8 scams, among them code requests without a code word ("the 6 digit number on your screen", "a code is coming, can u text it to me"), a request sent to "all customers", and non-credential scams (romance, delivery fee, job offer). Its one false alarm is a real delivery mail that tells you to give the courier your 4-digit delivery code.
 
-All of these are small, synthetic, English-only test sets, written by the same author, with fictional brands. They are not a guarantee of how ThreatPeek does on real messages. Run `npm run benchmark -- --set=heldout` (or `--set=heldout2`, `--set=dev`) in `backend/engine` to reproduce; full results are in [RESULTS.md](backend/engine/benchmark/RESULTS.md).
+### Update, 25 November 2026: scam families and disguised links
+
+Six reported messages scored 0 to 15: a recruiter with a "job brief" on `docs-share-view[.]com`, a VIP crypto signals group, a wallet "re-sync" asking for the 12-word recovery phrase, a traffic-fine demand, a paid video-liker job and a failed-delivery text with a `bit.ly` link. Disguised links (`[.]`, `dot`, `hxxp`) were not seen as links at all. We added link "refanging" and six scam-family signals with their own floors. The six messages now score 50, 70, 70, 60, 50 and 50. The rules were written from these six messages and their paraphrases, not from the benchmark sets. Each set was run before and after the change:
+
+| Set | Scams flagged before | After | High risk (70+) before | After | False alarms before | After |
+|---|---|---|---|---|---|---|
+| dev (35 + 35) | 94% (33/35) | 94% (33/35) | 23% (8/35) | 23% (8/35) | 0% (0/35) | 0% (0/35) |
+| heldout (20 + 20) | 65% (13/20) | **70% (14/20)** | 15% (3/20) | 15% (3/20) | 0% (0/20) | 0% (0/20) |
+| heldout2 (15 + 15) | 47% (7/15) | **53% (8/15)** | 7% (1/15) | 7% (1/15) | 7% (1/15) | 7% (1/15) |
+
+No false alarm was added. The newly caught held-out scams are a "like videos" job offer and a parcel held for an incomplete address. The held-out sets are no longer fully unseen: their miss lists were printed while we measured the "before" numbers. A third held-out set, [`heldout3.json`](backend/engine/benchmark/heldout3.json), is reserved for 30 new messages (15 scams, 15 normal) written by someone who has not seen the rules. It is empty until those are added.
+
+All of these are small, synthetic, English-only test sets, written by the same author, with fictional brands. They are not a guarantee of how ThreatPeek does on real messages. Run `npm run benchmark -- --set=heldout` (or `--set=heldout2`, `--set=dev`, and `--set=heldout3` once it has messages) in `backend/engine` to reproduce; full results are in [RESULTS.md](backend/engine/benchmark/RESULTS.md).
 
 ## Safety and honesty
 
@@ -169,10 +181,10 @@ npm test    # engine, server and frontend
 
 | Package | Test files | Tests | What they cover |
 |---|---|---|---|
-| `backend/engine` | 16 | 235 | Unit tests per module, 13 golden tests, fast-check property tests, normalization tests, a dev-set benchmark check |
+| `backend/engine` | 18 | 315 | Unit tests per module, 13 golden tests, fast-check property tests, normalization and defanged-link tests, scam-family tests, a dev-set benchmark check |
 | `backend/server` | 8 | 208 | Endpoints, SSRF guard and IP ranges, env loading, cache; no network needed |
-| `frontend` | 1 | 4 | The `api.js` adapter in mock mode |
-| **Total** | **25** | **447** | |
+| `frontend` | 2 | 14 | The `api.js` adapter in mock mode and the recorded voice clips (`voice.js`) |
+| **Total** | **28** | **537** | |
 
 ## How we built it
 
