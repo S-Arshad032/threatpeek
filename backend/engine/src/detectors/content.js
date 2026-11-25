@@ -148,6 +148,7 @@ import {
   WALLET_WORDS,
   INVESTMENT_PROMISE_PHRASES,
   GUARANTEE_WORDS,
+  PROMISE_NEGATIONS,
   INVESTMENT_RESULT_WORDS,
   MULTIPLY_VERBS,
   RETURN_PERIODS,
@@ -480,10 +481,11 @@ const WALLET_FIX_RE = re(
 );
 
 // investment-guarantee
+const NOT_PROMISED = `(?<!\\b${anyOf(PROMISE_NEGATIONS)}\\s)`;
 const INVEST_PROMISE_RE = re(
   [
-    words(INVESTMENT_PROMISE_PHRASES), // "guaranteed returns", "risk-free"
-    `${words(GUARANTEE_WORDS)}\\s+(?:[a-z]{1,15}\\s+)?${anyOf(INVESTMENT_RESULT_WORDS)}\\b`, // "guaranteed futures trades"
+    `${NOT_PROMISED}${words(INVESTMENT_PROMISE_PHRASES)}`, // "guaranteed returns", "risk-free"
+    `${NOT_PROMISED}${words(GUARANTEE_WORDS)}\\s+(?:[a-z]{1,15}\\s+)?${anyOf(INVESTMENT_RESULT_WORDS)}\\b`, // "guaranteed futures trades"
     `${words(MULTIPLY_VERBS)}\\s+(?:your\\s+|just\\s+|only\\s+)?${CUR_AMOUNT}\\s+(?:into|to)\\s+${CUR_AMOUNT}`, // "turn $200 into $3,500"
     `\\b\\d{1,3}(?:\\.\\d{1,2})?\\s?%\\s+${anyOf(RETURN_PERIODS)}\\b`, // "5% daily"
   ].join("|"),

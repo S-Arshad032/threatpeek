@@ -283,7 +283,7 @@ export const DEADLINE_EXTRA_UNITS = Object.freeze(["hr", "days", "day"]);
 export const IN_DEADLINE_UNITS = Object.freeze(["hours", "hour", "hrs", "hr"]);
 export const DEADLINE_NOT_AFTER = Object.freeze([
   "expire", "expires", "expiring", "valid", "arrive", "arrives", "arriving", "delivered", "processed",
-  "refunded", "credited", "shipped", "ready", "back to you", "reply", "respond", "dispatched",
+  "refunded", "credited", "shipped", "ready", "back to you", "dispatched",
 ]);
 // "only 20 places left".
 export const SCARCITY_UNITS = Object.freeze(["spots", "places", "slots", "seats"]);
@@ -786,6 +786,10 @@ export const INVESTMENT_PROMISE_PHRASES = Object.freeze([
   "double your money", "double your investment", "double your crypto", "double your bitcoin",
 ]);
 export const GUARANTEE_WORDS = Object.freeze(["guaranteed", "guarantee", "assured"]);
+// "does not guarantee future returns", "there are no guaranteed returns" are warnings.
+export const PROMISE_NEGATIONS = Object.freeze([
+  "no", "not", "never", "without", "don't", "doesn't", "can't", "cannot", "won't", "nothing is",
+]);
 export const INVESTMENT_RESULT_WORDS = Object.freeze([
   "returns", "return", "profit", "profits", "trades", "trade", "gains", "payout", "payouts", "wins",
   "income", "earnings", "signals",
