@@ -7,13 +7,25 @@ import { dirname, join } from "node:path";
 import { score } from "../src/index.js";
 import { BENCHMARK_DETECTED_MIN_SCORE, BENCHMARK_STRONG_MIN_SCORE } from "../src/config.js";
 
-export const SETS = Object.freeze(["dev", "heldout", "heldout2"]);
+export const SETS = Object.freeze(["dev", "heldout", "heldout2", "heldout3"]);
 export const BENCHMARK_DIR = dirname(fileURLToPath(import.meta.url));
+
+/** The set file: a bare array of messages, or `{ note, messages }` (heldout3 carries a note). */
+function readSetFile(name) {
+  if (!SETS.includes(name)) throw new Error(`unknown set "${name}", expected one of: ${SETS.join(", ")}`);
+  return JSON.parse(readFileSync(join(BENCHMARK_DIR, `${name}.json`), "utf8"));
+}
 
 /** @returns {Array<{ id: string, text: string, label: "scam" | "benign", category: string }>} */
 export function loadSet(name) {
-  if (!SETS.includes(name)) throw new Error(`unknown set "${name}", expected one of: ${SETS.join(", ")}`);
-  return JSON.parse(readFileSync(join(BENCHMARK_DIR, `${name}.json`), "utf8"));
+  const data = readSetFile(name);
+  return Array.isArray(data) ? data : data.messages;
+}
+
+/** @returns {string | null} the set's note, if its file has one */
+export function setNote(name) {
+  const data = readSetFile(name);
+  return Array.isArray(data) ? null : (data.note ?? null);
 }
 
 const rate = (n, d) => (d === 0 ? 0 : n / d);

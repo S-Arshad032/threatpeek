@@ -59,7 +59,10 @@ The suite has unit tests per module, 13 golden tests, fast-check property tests 
 npm run benchmark                     # dev set (70 messages, used to tune the rules)
 npm run benchmark -- --set=heldout    # held-out set (40 different messages, never tuned on)
 npm run benchmark -- --set=heldout2   # second held-out set (30 messages, credential/OTP focus, never tuned on)
+npm run benchmark -- --set=heldout3   # reserved third held-out set (empty for now, see below)
 ```
+
+**heldout3 is reserved.** [`benchmark/heldout3.json`](benchmark/heldout3.json) has an empty `messages` array on purpose. It is kept for 30 fresh messages (15 scam, 15 benign) written by someone who has NOT seen the rules, or by the author before reading any engine output for them. Add them, run `--set=heldout3` once, and never tune rules on them afterwards. Until then the run prints this note and scores nothing.
 
 Each run scores every message with `score(text)` only (no AI, no Safe Browsing). It prints counts by label and verdict, detection rate (scam scored 31 or more), strong detection rate (70 or more), false-alarm rate (normal message scored 31 or more), detection per scam category, and every miss and false alarm. It also updates that set's section of [`benchmark/RESULTS.md`](benchmark/RESULTS.md). The sets are small, synthetic and English-only, and all were written by the same author, so the numbers are not a guarantee.
 

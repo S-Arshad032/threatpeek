@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { loadSet, evaluate } from "../benchmark/lib.js";
+import { SETS, loadSet, setNote, evaluate } from "../benchmark/lib.js";
 import { BENCHMARK_MIN_DETECTION_RATE, BENCHMARK_MAX_FALSE_ALARM_RATE } from "../src/config.js";
 
 // Regression guard on the dev set only. The held-out set is never asserted on, so it stays an
@@ -61,5 +61,16 @@ describe("benchmark held-out sets are well formed", () => {
     const all = ["dev", "heldout", "heldout2"].flatMap((n) => loadSet(n));
     expect(new Set(all.map((m) => m.text)).size).toBe(all.length);
     expect(new Set(all.map((m) => m.id)).size).toBe(all.length);
+  });
+});
+
+describe("benchmark heldout3 (reserved)", () => {
+  it("is a known set with a note and a messages array", () => {
+    expect(SETS).toContain("heldout3");
+    expect(Array.isArray(loadSet("heldout3"))).toBe(true);
+    expect(setNote("heldout3")).toMatch(/NOT seen/);
+  });
+  it("the older sets are still bare arrays", () => {
+    for (const name of ["dev", "heldout", "heldout2"]) expect(setNote(name)).toBeNull();
   });
 });

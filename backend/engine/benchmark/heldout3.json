@@ -1,0 +1,4 @@
+{
+  "note": "Reserved for 30 fresh messages (15 scam / 15 benign) that the rule author has NOT seen while writing rules. Add them before looking at any engine output, run once with --set=heldout3, and never tune rules on them. Same format as heldout.json: { id, text, label: scam|benign, category }.",
+  "messages": []
+}
