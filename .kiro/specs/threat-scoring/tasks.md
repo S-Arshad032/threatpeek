@@ -262,6 +262,16 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - Held-out set run once at the end; numbers reported unchanged in the README
   - _Requirements: 2.9-2.24, 3.3, 4.12, 4.14, 4.15, 13.1-13.4_
 
+- [x] 18. Direct password and OTP requests
+  - [x] 18.1 Diagnose: "Send us your password and otp" scored 20 because "otp" was not a code term for `code-sharing-request` (only `credential-request`, weight 20, fired) and no floor exists for a credential word alone
+  - [x] 18.2 `benchmark/heldout2.json` (30 new messages, 15 scam / 15 benign) written and run once BEFORE tuning; 10 credential/OTP messages added to `benchmark/dev.json` (now 70); `--set=heldout2` in `npm run benchmark`
+  - [x] 18.3 `code-sharing-request` secret-code family: OTP, PIN, 2FA code and the code terms in a list after a hand-over verb with an explicit recipient, "to this number", or "reply with"; "the code we texted you" is a code term; word-count gaps with clause-opening stop words (Requirement 2.22)
+  - [x] 18.4 A delivered code ("Your OTP is 482913") is not a `credential-request` (Requirement 2.10)
+  - [x] 18.5 Floor 4.16: `context.secretRequest` (an instruction to hand over a password, PIN, passcode, login or security answer) lifts the score to 45 (`FLOOR_SECRET_REQUEST`); governed negations never fire (Requirement 4.16)
+  - [x] 18.6 Tests: `content-families.test.js` (a)/(b)/(c) and delivered codes, `blend.test.js` 4.16, P18 extended, P20 worst cases for the new regexes, held-out format checks in `benchmark.test.js`; all golden scores unchanged
+  - [x] 18.7 heldout2 run once after tuning and reported unchanged; heldout and dev re-run as a regression check only
+  - _Requirements: 2.10, 2.22, 4.16, 11.1, 13.1-13.4_
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for a faster MVP (but all property tests are needed to satisfy Requirement 11)

@@ -169,3 +169,48 @@ describe("new regexes stay fast on adversarial input", () => {
     expect(performance.now() - start).toBeLessThan(500);
   });
 });
+
+describe("direct password and OTP requests", () => {
+  it("(a) code-sharing-request: a secret code in a list after a hand-over verb and a recipient", () => {
+    expect(ids("Send us your password and otp")).toEqual(["credential-request", "code-sharing-request"]);
+    expect(ids("Text me your username, PIN and 2FA code")).toEqual(["credential-request", "code-sharing-request"]);
+    expect(ids("Forward our team the passcode or the OTP")).toEqual(["credential-request", "code-sharing-request"]);
+    expect(ids("Please send your OTP to this number")).toEqual(["credential-request", "code-sharing-request"]);
+    expect(ids("Reply with your PIN and the code we texted you")).toEqual(["credential-request", "code-sharing-request"]);
+    expect(ids("Read me the code I just sent")).toEqual(["code-sharing-request"]);
+    expect(score("Send us your password and otp").riskScore).toBe(50); // floor 4.14
+  });
+  it("(a) needs a hand-over context: no recipient, a new clause, or a sentence end in between", () => {
+    expect(ids("Send the OTP")).toEqual(["credential-request"]);
+    expect(ids("Tell us if you did not get your OTP")).toEqual(["credential-request"]);
+    expect(ids("Send us a note. Your OTP arrives soon")).toEqual(["credential-request"]);
+    expect(ids("Send us the pin for the map")).toEqual([]);
+    expect(ids("please pin this post and send us a photo")).toEqual([]);
+  });
+  it("(b) floor 4.16: an instruction to hand over a password, PIN, passcode, login or security answer", () => {
+    expect(score("Send us your password").riskScore).toBe(45);
+    expect(score("Kindly email us your login details and password").riskScore).toBe(45);
+    expect(score("Hi Sam, tell me your security answer").riskScore).toBe(45);
+    expect(score("You need to give our agent your card PIN").riskScore).toBeGreaterThanOrEqual(45);
+    expect(score("Send us your password").verdict).toBe("skeptical");
+  });
+  it("(b) not an instruction, or not the secret itself: no floor", () => {
+    expect(score("If you share your password, change it").riskScore).toBe(20);
+    expect(score("We sent your password reset link").riskScore).toBe(20);
+    expect(score("Forgot it? Send a new password from the sign-in page.").riskScore).toBe(20);
+    expect(score("Share your password manager tips with the team").riskScore).toBe(20);
+    expect(score("Tell us if you forgot your password").riskScore).toBe(20);
+  });
+  it("(c) a request verb governed by a negation never fires", () => {
+    expect(score("Never share your password with anyone").riskScore).toBe(0);
+    expect(score("We will never ask you to send us your OTP").riskScore).toBe(0);
+    expect(score("Do not share it with anyone").riskScore).toBe(0);
+    expect(score("Never email your password or PIN to anyone").riskScore).toBe(0);
+    expect(score("You must not send us your password").riskScore).toBeLessThanOrEqual(VERDICT_POOKIE_MAX);
+  });
+  it("a code being delivered is not a request", () => {
+    expect(score("Your OTP is 482913. Do not share it with anyone.").riskScore).toBe(0);
+    expect(score("Your one-time password is 559031.").riskScore).toBe(0);
+    expect(ids("Your OTP is 4821. Please send it to us now")).toEqual(["code-sharing-request"]);
+  });
+});

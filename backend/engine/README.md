@@ -29,7 +29,7 @@ const result = score("Enter your OTP at http://203.0.113.5/verify");
 
 Errors: `TypeError` when the input is not a string. `RangeError` when the input is longer than 4000 characters, or when `l3Score` is not an integer 0–100.
 
-The package also exports `blend(l1Score, l2Hit, l3Score, flags, context?)` and `verdictFor(riskScore)`. `context.paymentInstruction` is a fact from the content detector, not a signal: it lets a gift-card or crypto payment reach its floor when the message says where to send it.
+The package also exports `blend(l1Score, l2Hit, l3Score, flags, context?)` and `verdictFor(riskScore)`. `context.paymentInstruction` and `context.secretRequest` are facts from the content detector, not signals: the first lets a gift-card or crypto payment reach its floor when the message says where to send it; the second lifts a direct instruction to hand over a password, PIN, passcode, login or security answer ("Send us your password") to at least 45.
 
 ## How it scores
 
@@ -56,10 +56,11 @@ The suite has unit tests per module, 13 golden tests, fast-check property tests 
 ## Benchmark
 
 ```sh
-npm run benchmark                    # dev set (60 messages, used to tune the rules)
-npm run benchmark -- --set=heldout   # held-out set (40 different messages, never tuned on)
+npm run benchmark                     # dev set (70 messages, used to tune the rules)
+npm run benchmark -- --set=heldout    # held-out set (40 different messages, never tuned on)
+npm run benchmark -- --set=heldout2   # second held-out set (30 messages, credential/OTP focus, never tuned on)
 ```
 
-Each run scores every message with `score(text)` only (no AI, no Safe Browsing). It prints counts by label and verdict, detection rate (scam scored 31 or more), strong detection rate (70 or more), false-alarm rate (normal message scored 31 or more), detection per scam category, and every miss and false alarm. It also updates that set's section of [`benchmark/RESULTS.md`](benchmark/RESULTS.md). The sets are small, synthetic and English-only, so the numbers are not a guarantee.
+Each run scores every message with `score(text)` only (no AI, no Safe Browsing). It prints counts by label and verdict, detection rate (scam scored 31 or more), strong detection rate (70 or more), false-alarm rate (normal message scored 31 or more), detection per scam category, and every miss and false alarm. It also updates that set's section of [`benchmark/RESULTS.md`](benchmark/RESULTS.md). The sets are small, synthetic and English-only, and all were written by the same author, so the numbers are not a guarantee.
 
 On Windows, run the tests from a path whose drive letter is uppercase (`D:\...`). If Git Bash starts in `/d/...`, the working directory gets a lowercase drive letter, vitest loads two copies of itself, and every suite fails with "Cannot read properties of undefined (reading 'config')".

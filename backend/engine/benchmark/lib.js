@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { score } from "../src/index.js";
 import { BENCHMARK_DETECTED_MIN_SCORE, BENCHMARK_STRONG_MIN_SCORE } from "../src/config.js";
 
-export const SETS = Object.freeze(["dev", "heldout"]);
+export const SETS = Object.freeze(["dev", "heldout", "heldout2"]);
 export const BENCHMARK_DIR = dirname(fileURLToPath(import.meta.url));
 
 /** @returns {Array<{ id: string, text: string, label: "scam" | "benign", category: string }>} */

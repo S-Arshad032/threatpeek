@@ -51,6 +51,10 @@ export const FLOOR_FINANCIAL_INFO = 50;
 export const FLOOR_UNUSUAL_PAYMENT = 40; // unusual-payment-method + a pressure signal or an explicit "send/pay ... to" instruction
 export const FLOOR_CODE_SHARING = 50; // code-sharing-request alone
 export const FLOOR_MISTAKEN_PAYMENT = 40; // mistaken-payment alone
+// 4.16: the message tells the reader to hand over a password, PIN, passcode, login or security
+// answer ("Send us your password", "You must email us your login password"). Not a signal: the
+// content detector reports it as context.secretRequest. Lifts the score into "skeptical".
+export const FLOOR_SECRET_REQUEST = 45;
 
 // ---------------------------------------------------------------------------
 // Blend coefficients
@@ -482,6 +486,157 @@ export const CODE_TERMS = Object.freeze([
 export const CODE_DIGIT_LENGTH_MAX = 2; // "6-digit code"
 export const CODE_PRONOUNS = Object.freeze(["it", "this", "that", "them"]);
 export const CODE_RECIPIENTS = Object.freeze(["us", "me"]);
+// "the code we texted you", "the code I just sent to you": a code that was sent to the reader.
+export const CODE_SENDERS = Object.freeze(["we", "i"]);
+export const CODE_SENT_VERBS = Object.freeze(["texted", "sent", "messaged", "emailed"]);
+
+// code-sharing-request, secret-code family. Secrets that only count with a hand-over context
+// (a recipient or "reply with"), so "Send the OTP" alone stays a plain credential-request:
+//   "Send us your password and otp", "give us your login password, PIN and the 2FA code",
+//   "Please send your OTP to this number", "Reply with your PIN".
+export const SECRET_CODE_TERMS = Object.freeze([
+  "otp",
+  "otp code",
+  "2fa code",
+  "2-step code",
+  "two-factor code",
+  "authentication code",
+  "authenticator code",
+  ...CODE_TERMS,
+]);
+// "pin" is an ordinary word ("pin this post"); it is a secret only after one of these words
+// ("your PIN", "card pin", "password, PIN and ...") or before "code"/"number".
+export const PIN_OWNERS = Object.freeze(["your", "account", "card", "banking", "atm", "and", "or"]);
+export const PIN_SUFFIXES = Object.freeze(["code", "number"]);
+// Verbs that hand something over. "reply with"/"respond with" already point back at the sender.
+export const SECRET_HAND_OVER_VERBS = Object.freeze([
+  "send",
+  "share",
+  "give",
+  "tell",
+  "provide",
+  "forward",
+  "read out",
+  "read",
+  "text",
+  "email",
+]);
+export const SELF_ADDRESSED_VERBS = Object.freeze(["reply with", "respond with"]);
+// Who receives it: "send US ...", "... to THIS NUMBER".
+export const SECRET_RECIPIENTS = Object.freeze([
+  "us",
+  "me",
+  "them",
+  "him",
+  "her",
+  "our team",
+  "our agent",
+  "our officer",
+  "our staff",
+  "the agent",
+  "the officer",
+  "this number",
+  "this email",
+  "this address",
+]);
+export const SECRET_RECIPIENT_PROXIMITY_CHARS = 30; // "your OTP" -> "to this number"
+// Verb -> secret gap, counted in words (about REQUEST_PROXIMITY_CHARS characters), same sentence;
+// commas are allowed so a list such as "your password, PIN and OTP" stays one gap.
+export const SECRET_GAP_WORDS_MAX = 8;
+// A gap that starts a new clause is not "verb -> object": "Tell us IF you did not get your OTP".
+export const GAP_STOP_WORDS = Object.freeze([
+  "if",
+  "whether",
+  "when",
+  "how",
+  "why",
+  "what",
+  "where",
+  "about",
+  "after",
+  "before",
+  "once",
+  "unless",
+  "because",
+]);
+
+// A code being delivered ("Your OTP is 482913", "one-time password: 5590") is not a request.
+// Credential words inside such a notice do not fire credential-request.
+export const DELIVERED_CODE_TERMS = Object.freeze([...SECRET_CODE_TERMS, "pin", "code"]);
+export const DELIVERED_CODE_DIGITS_MIN = 4;
+export const DELIVERED_CODE_DIGITS_MAX = 10;
+
+// Floor 4.16 (context.secretRequest): an instruction to the reader to hand over a secret.
+// Instruction = the verb opens a sentence or clause (after optional "please", "kindly"...), or
+// follows "you must / you need to / we need you to".
+export const SECRET_REQUEST_VERBS = Object.freeze([
+  "send",
+  "share",
+  "give",
+  "tell",
+  "reply with",
+  "read out",
+  "email",
+  "text",
+  "forward",
+]);
+export const SECRET_REQUEST_TERMS = Object.freeze([
+  "password",
+  "passwords",
+  "passcode",
+  "login details",
+  "login credentials",
+  "login information",
+  "login info",
+  "log-in details",
+  "sign-in details",
+  "security answer",
+  "security answers",
+  "security question answer",
+  "memorable answer",
+  "memorable word",
+]); // plus "pin" with the PIN_OWNERS / PIN_SUFFIXES rule above
+// "password reset link", "password manager": the word names something else, not the secret.
+export const PASSWORD_NOT_SECRET_AFTER = Object.freeze([
+  "reset",
+  "hint",
+  "hints",
+  "manager",
+  "managers",
+  "change",
+  "strength",
+  "tips",
+  "policy",
+  "requirements",
+  "link",
+]);
+export const PASSWORD_NOT_SECRET_BEFORE = Object.freeze(["new", "temporary", "strong"]); // "Send me a new password"
+export const INSTRUCTION_LEAD_INS = Object.freeze([
+  "please",
+  "kindly",
+  "just",
+  "simply",
+  "now",
+  "so",
+  "then",
+  "and",
+  "also",
+  "quickly",
+]);
+export const INSTRUCTION_LEAD_INS_MAX = 2;
+export const INSTRUCTION_MODALS = Object.freeze([
+  "you must",
+  "you need to",
+  "you have to",
+  "you should",
+  "you are required to",
+  "we need you to",
+  "i need you to",
+  "we want you to",
+  "i want you to",
+]);
+// Words between the verb (and its recipient) and the secret: "send us YOUR LOGIN password".
+export const SECRET_REQUEST_GAP_WORDS = 5;
 
 // mistaken-payment: "I sent you money by mistake, please send it back".
 export const MISTAKE_ADVERBS = Object.freeze(["accidentally", "mistakenly", "wrongly"]);

@@ -15,6 +15,7 @@ import {
   FLOOR_UNUSUAL_PAYMENT,
   FLOOR_CODE_SHARING,
   FLOOR_MISTAKEN_PAYMENT,
+  FLOOR_SECRET_REQUEST,
   SCORE_MIN,
   SCORE_MAX,
 } from "./config.js";
@@ -24,9 +25,11 @@ import {
  * @param {boolean} l2Hit
  * @param {number | null} l3Score       integer 0-100 or null
  * @param {string[] | Set<string>} flags signal ids that fired
- * @param {{ paymentInstruction?: boolean }} [context] facts from the content detector that are not
- *        signals: `paymentInstruction` is true when the message explicitly says where to send the
- *        payment ("send it to me", "pay to this account", "send me the codes")
+ * @param {{ paymentInstruction?: boolean, secretRequest?: boolean }} [context] facts from the content
+ *        detector that are not signals: `paymentInstruction` is true when the message explicitly
+ *        says where to send the payment ("send it to me", "pay to this account", "send me the
+ *        codes"); `secretRequest` is true when the message tells the reader to hand over a
+ *        password, PIN, passcode, login or security answer ("Send us your password")
  * @returns {number} integer riskScore 0-100
  */
 export function blend(l1Score, l2Hit, l3Score, flags, context) {
@@ -70,6 +73,9 @@ export function blend(l1Score, l2Hit, l3Score, flags, context) {
   if (has("unusual-payment-method") && paymentPressure) risk = Math.max(risk, FLOOR_UNUSUAL_PAYMENT); // 4.12
   if (has("code-sharing-request")) risk = Math.max(risk, FLOOR_CODE_SHARING); // 4.14
   if (has("mistaken-payment")) risk = Math.max(risk, FLOOR_MISTAKEN_PAYMENT); // 4.15
+  // 4.16: "Send us your password" is a direct instruction to hand over a secret. The word
+  // "password" alone (a reset mail, a security tip) has no floor; only the instruction does.
+  if (context?.secretRequest === true) risk = Math.max(risk, FLOOR_SECRET_REQUEST); // 4.16
 
   return Math.round(Math.min(SCORE_MAX, Math.max(SCORE_MIN, risk))); // 4.13
 }

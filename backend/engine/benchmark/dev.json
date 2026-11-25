@@ -29,6 +29,11 @@
   { "id": "dev-s28", "label": "scam", "category": "loan-offer", "text": "Pre-approved: TrustLedger Finance has approved you for a personal loan at 0.5% interest. To receive the money, provide your bank login details and social security number for verification." },
   { "id": "dev-s29", "label": "scam", "category": "otp-theft", "text": "Galactibank: someone is trying to change your phone number. If this was not you, reply with the 6-digit code we just sent to cancel the request." },
   { "id": "dev-s30", "label": "scam", "category": "otp-theft", "text": "Hi, this is Nexamail support. We sent you a verification code by mistake while updating our system. Please forward it to us so we can complete the security check on your account." },
+  { "id": "dev-s31", "label": "scam", "category": "otp-theft", "text": "VaultPay helpdesk: we need to confirm you are the owner of this wallet. Reply with your PIN and the code we texted you a moment ago." },
+  { "id": "dev-s32", "label": "scam", "category": "otp-theft", "text": "Nexamail admin: send us your mailbox password and otp from your phone so we can move your account to the new server tonight." },
+  { "id": "dev-s33", "label": "scam", "category": "otp-theft", "text": "Hi, this is Orbitins claims. Please send your OTP to this number to approve your refund of $310." },
+  { "id": "dev-s34", "label": "scam", "category": "bank-impersonation", "text": "Galactibank: a suspicious transfer was stopped. Our agent will call you shortly. Tell him your online banking password or security answer so he can check it is really you." },
+  { "id": "dev-s35", "label": "scam", "category": "otp-theft", "text": "TrustLedger support here. To restore your wallet, give us your login password, PIN and the 2FA code from your authenticator app." },
 
   { "id": "dev-b01", "label": "benign", "category": "shipping-notice", "text": "Your Orbitins order #50213 has shipped. Track it at https://orbitins.test/track. Expected delivery: Thursday." },
   { "id": "dev-b02", "label": "benign", "category": "shipping-notice", "text": "Good news! Your package was delivered to your front porch at 2:14 PM. Thanks for shopping with us." },
@@ -59,5 +64,10 @@
   { "id": "dev-b27", "label": "benign", "category": "everyday", "text": "Can you send me the photos from the trip when you get a chance?" },
   { "id": "dev-b28", "label": "benign", "category": "everyday", "text": "Parents: the school trip payment of $15 is due Friday. Please send cash in a labelled envelope with your child." },
   { "id": "dev-b29", "label": "benign", "category": "job-congratulations", "text": "Thanks for applying to the Support Specialist role. We've received your application and will be in touch within two weeks." },
-  { "id": "dev-b30", "label": "benign", "category": "security-notice", "text": "Tip of the week: never pay for anything with gift cards if someone you don't know asks you to. Real companies don't do that." }
+  { "id": "dev-b30", "label": "benign", "category": "security-notice", "text": "Tip of the week: never pay for anything with gift cards if someone you don't know asks you to. Real companies don't do that." },
+  { "id": "dev-b31", "label": "benign", "category": "security-notice", "text": "Your Galactibank one-time password is 559031. Never share this code, not even with bank staff." },
+  { "id": "dev-b32", "label": "benign", "category": "security-notice", "text": "Nexamail: use code 663018 to verify your new email address. If you did not request it, ignore this message." },
+  { "id": "dev-b33", "label": "benign", "category": "security-notice", "text": "VaultPay will never ask you to send your PIN, password or OTP. Report suspicious messages to security@vaultpay.example." },
+  { "id": "dev-b34", "label": "benign", "category": "security-notice", "text": "Forgot your password? Choose Send reset link on the sign-in page and we will email you a link to set a new one." },
+  { "id": "dev-b35", "label": "benign", "category": "everyday", "text": "Can you share the slides and the meeting code with the new intern? Thanks!" }
 ]

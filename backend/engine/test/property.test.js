@@ -114,6 +114,8 @@ const ADVERSARIAL_FRAGMENTS = [
   // content proximity regexes: many verbs, negations and near-miss terms in one long sentence
   "enter ", "pay ", "send ", "never ", "not ", "credit ", "card ", "gift ", "mobile ", "wallet ", "fee ",
   "$1", "1,", " million", "congratulations ", "transfer of ", "don't ", "keep this ",
+  // secret-code and secret-request regexes
+  "share ", "us ", "your ", "and ", ", ", "please ", "you must ", "reply with ", "pin ", "otp ", "code ", "is ",
 ];
 const adversarialArb = fc.oneof(
   fc
@@ -273,6 +275,15 @@ describe("score properties", () => {
       fill("usd 1 "),
       fill("transfer of $1 "),
       fill("don't "),
+      fill("send us "),
+      fill("send us your password and "),
+      fill("please send "),
+      fill("reply with your "),
+      fill("you must send "),
+      fill(", pin"),
+      fill("otp is "),
+      fill("send your otp "),
+      fill("share us your, ").slice(0, MAX_INPUT_LENGTH - 3) + "otp",
       fill("enter ").slice(0, MAX_INPUT_LENGTH - 12) + "credit card",
       fill("pay ").slice(0, MAX_INPUT_LENGTH - 10) + "gift cards",
     ];
@@ -384,6 +395,10 @@ describe("blend and verdictFor properties", () => {
     ];
     run(fc.property(l1Arb, l2Arb, l3Arb, flagListArb, fc.constantFrom(...floors), (l1, l2, l3, extra, [required, min]) => {
       expect(blend(l1, l2, l3, [...extra, ...required])).toBeGreaterThanOrEqual(min);
+    }));
+    // 4.16 is a context fact, not a flag.
+    run(fc.property(l1Arb, l2Arb, l3Arb, flagListArb, (l1, l2, l3, flags) => {
+      expect(blend(l1, l2, l3, flags, { secretRequest: true })).toBeGreaterThanOrEqual(45);
     }));
   });
 

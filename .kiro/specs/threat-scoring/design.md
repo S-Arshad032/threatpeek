@@ -75,7 +75,8 @@ backend/engine/
   benchmark/
     dev.json             (60 labelled messages, used for tuning)
     heldout.json         (40 different messages, never tuned on)
-    lib.js, run.js       (`npm run benchmark [-- --set=dev|heldout]`)
+    heldout2.json        (30 different messages, credential/OTP focus, never tuned on)
+    lib.js, run.js       (`npm run benchmark [-- --set=dev|heldout|heldout2]`)
     RESULTS.md           (generated)
 ```
 
@@ -165,6 +166,7 @@ export const FLOOR_FINANCIAL_INFO = 50;
 export const FLOOR_UNUSUAL_PAYMENT = 40;   // only with a pressure signal or a hand-over instruction
 export const FLOOR_CODE_SHARING   = 50;
 export const FLOOR_MISTAKEN_PAYMENT = 40;
+export const FLOOR_SECRET_REQUEST = 45; // 4.16, context.secretRequest
 
 // Content proximity windows (characters)
 export const REQUEST_PROXIMITY_CHARS = 60;
@@ -300,6 +302,7 @@ function blend(l1Score, l2Hit, l3Score, flags, context = {}):
                                                           risk = max(risk, FLOOR_UNUSUAL_PAYMENT) // 4.12
   if has("code-sharing-request"):                         risk = max(risk, FLOOR_CODE_SHARING)    // 4.14
   if has("mistaken-payment"):                             risk = max(risk, FLOOR_MISTAKEN_PAYMENT) // 4.15
+  if context.secretRequest:                               risk = max(risk, FLOOR_SECRET_REQUEST)  // 4.16
 
   return Math.round(Math.min(100, Math.max(0, risk)))                                   // 4.13
 ```
@@ -307,6 +310,8 @@ function blend(l1Score, l2Hit, l3Score, flags, context = {}):
 The 0.8 x L1 floor is applied before the hard floors; hard floors can only raise the score. Clamp and round are always last.
 
 `context.paymentInstruction` comes from the content detector (`score()` passes it through). It is not a signal and has no weight: it only says the message names where to send the payment ("send it to me", "pay to this account", "send me the codes"). A gift card or crypto mentioned with no pressure and no instruction ("Buy a gift card for your mom") gets no floor and stays at 20.
+
+`context.secretRequest` also comes from the content detector. It says the message tells the reader to hand over a password, PIN, passcode, login or security answer ("Send us your password", "You need to email us your login details"). A credential word alone keeps weight 20 and no floor, because reset mails and security tips use the same words; only the instruction lifts the score to 45 (Skeptical). 45 sits below floor 4.14 (50): a stolen one-time code is the more direct account takeover, and below 4.8 (55) so urgency plus a credential word still ranks higher.
 
 ## verdict.js
 
@@ -509,6 +514,10 @@ Every gap is a negated class with an explicit upper bound, so each start positio
 
 **Negated request spans.** `NEGATION + helpers{0,4} + (request or share verb) + up to 60 characters of the same sentence` marks a warning clause. Credential words that start inside such a clause ("Do not share your PIN", "never ask you to share your card number, PIN or password") do not count for `credential-request`.
 
+**Word gaps.** The secret-code and secret-request rules count the verb -> object gap in words, not characters: `(?:,?\s(?!STOP\b)[a-z0-9'’-]{1,20}){0,N}?,?\s`, where `STOP` is `GAP_STOP_WORDS` (if, whether, when, how, why, what, where, about, after, before, once, unless, because). Word characters, commas and spaces are disjoint classes and N is a constant (8 for code sharing, 5 for secret requests), so each start position does bounded work. Commas are allowed so a list ("your password, PIN and OTP") stays one gap; a clause-opening word ends it ("Tell us if you did not get your OTP").
+
+**Delivered codes.** `(DELIVERED_CODE_TERMS)(\s+is\s*:?|\s*:)\s*\d{4,10}\b` ("Your OTP is 482913") marks a notice. Credential words that start inside it do not count for `credential-request`, the same way as negated request spans.
+
 **Pairing across sentences.** `code-sharing-request` (code mention, then "forward it to us" within 100 characters) and `mistaken-payment` (claim, then return request within 200 characters) match the two parts separately and pair them in one forward pass over the two sorted match lists, so no regex spans more than one bounded gap.
 
 #### prize-lottery (weight `W_PRIZE_LOTTERY` = 25)
@@ -558,7 +567,15 @@ The detector also returns `paymentInstruction` (not a signal): `NOT_GOVERNED + (
 1. `NOT_GOVERNED + (reply with|send|share|forward|tell|give|read|text) + NEAR + CODE`, where `CODE` is `CODE_TERMS` (verification/security/confirmation/login/sign-in/access/SMS code, one-time code/password/passcode, passcode) or `\d{1,2}[- ]digit [word] code`.
 2. A `CODE` mention followed within `CODE_PRONOUN_PROXIMITY_CHARS` (100, may cross a sentence end) by `NOT_GOVERNED + share verb + (it|this|that|them) [back] to (us|me)`. The evidence is the hand-over phrase.
 
-"Enter the code" never fires (that is how real one-time codes are used). "OTP" is left to `credential-request` so "Send the OTP" is not counted twice.
+"Enter the code" never fires (that is how real one-time codes are used). "OTP" is left to `credential-request` so "Send the OTP" is not counted twice. `CODE` also includes `code (that)? (we|i) (just)? (texted|sent|messaged|emailed)` ("the code we texted you").
+
+3. Secret-code family (`SECRET_CODE` = `SECRET_CODE_TERMS` (otp, otp code, 2fa code, 2-step code, two-factor code, authentication/authenticator code, plus `CODE_TERMS`) | `PIN` | `CODE`), with an explicit hand-over:
+   - `NOT_GOVERNED + HAND_OVER_VERB + \s+ RECIPIENT + WORD_GAP(8) + SECRET_CODE` ("Send us your password and otp")
+   - `NOT_GOVERNED + HAND_OVER_VERB + WORD_GAP(8) + SECRET_CODE + up to 30 chars + to RECIPIENT` ("send your OTP to this number")
+   - `NOT_GOVERNED + (reply with|respond with) + WORD_GAP(8) + SECRET_CODE` ("Reply with your PIN")
+   `PIN` = `(,\s?|\b(your|account|card|banking|atm|and|or)\s+)pin\b | \bpin\s+(code|number)\b`, so "pin this post" and "send us the pin for the map" do not fire. The pronoun hand-over (rule 2) also accepts a `SECRET_CODE` mention ("Your OTP is 4821. Please send it to us").
+
+The detector also returns `secretRequest` (not a signal, floor 4.16): `(CLAUSE_START | INSTRUCTION_MODAL\s+) + LEAD_INS{0,2} + SECRET_REQUEST_VERB + [\s+RECIPIENT] + WORD_GAP(5) + SECRET_TERM`, where `CLAUSE_START` is a lookbehind for the text start or `[.!?:;,("“\n]` plus an optional space, `LEAD_INS` are please/kindly/just/simply/now/so/then/and/also/quickly, and `SECRET_TERM` is a password/passcode/login details/security answer/memorable word term (not after new/temporary/strong, not before reset/hint/manager/...) or `PIN`. A negation cannot sit between the clause start and the verb, so "Never share your password" and "You must not send us your password" do not match.
 
 #### mistaken-payment (weight `W_MISTAKEN_PAYMENT` = 25)
 
@@ -672,7 +689,7 @@ Cursed-phrase reasons (`CURSED_PHRASE_REASONS`):
 
 **P17: blend determinism and representation independence.** Two identical calls return the same value, and passing flags as an Array or as a Set returns the same value. *Validates 11.5.*
 
-**P18: Hard floors.** For any valid blend inputs: `typosquatting` + `credential-request` gives >= 70; `raw-ip-url` + `credential-request` gives >= 70; (`spf-fail` or `dkim-fail`) + `display-name-mismatch` gives >= 60; `credential-request` + `urgency-en` gives >= 55; `suspicious-attachment` gives >= 40; (`prize-lottery` or `advance-fee-scheme`) + (`financial-info-request` or `unusual-payment-method`) gives >= 70; `financial-info-request` gives >= 50; `unusual-payment-method` + (`urgency-en` or `secrecy-pressure`) gives >= 40; `code-sharing-request` gives >= 50; `mistaken-payment` gives >= 40. *Validates 4.5-4.12, 4.14, 4.15.* (The 4.12 case with `context.paymentInstruction` and the "alone has no floor" case are unit tests in `blend.test.js`.)
+**P18: Hard floors.** For any valid blend inputs: `typosquatting` + `credential-request` gives >= 70; `raw-ip-url` + `credential-request` gives >= 70; (`spf-fail` or `dkim-fail`) + `display-name-mismatch` gives >= 60; `credential-request` + `urgency-en` gives >= 55; `suspicious-attachment` gives >= 40; (`prize-lottery` or `advance-fee-scheme`) + (`financial-info-request` or `unusual-payment-method`) gives >= 70; `financial-info-request` gives >= 50; `unusual-payment-method` + (`urgency-en` or `secrecy-pressure`) gives >= 40; `code-sharing-request` gives >= 50; `mistaken-payment` gives >= 40; `context.secretRequest` gives >= 45. *Validates 4.5-4.12, 4.14-4.16.* (The 4.12 case with `context.paymentInstruction` and the "alone has no floor" case are unit tests in `blend.test.js`.)
 
 **P19: verdictFor exhaustiveness.** For every integer 0-100 the result is exactly one of the three strings, with 0-30 `pookie`, 31-69 `skeptical`, 70-100 `poltergeist`. *Validates 5.1-5.4, 11.6.*
 

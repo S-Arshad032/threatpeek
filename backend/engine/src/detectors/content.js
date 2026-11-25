@@ -83,6 +83,28 @@ import {
   CODE_PRONOUNS,
   CODE_RECIPIENTS,
   CODE_PRONOUN_PROXIMITY_CHARS,
+  CODE_SENDERS,
+  CODE_SENT_VERBS,
+  SECRET_CODE_TERMS,
+  PIN_OWNERS,
+  PIN_SUFFIXES,
+  SECRET_HAND_OVER_VERBS,
+  SELF_ADDRESSED_VERBS,
+  SECRET_RECIPIENTS,
+  SECRET_RECIPIENT_PROXIMITY_CHARS,
+  SECRET_GAP_WORDS_MAX,
+  GAP_STOP_WORDS,
+  DELIVERED_CODE_TERMS,
+  DELIVERED_CODE_DIGITS_MIN,
+  DELIVERED_CODE_DIGITS_MAX,
+  SECRET_REQUEST_VERBS,
+  SECRET_REQUEST_TERMS,
+  PASSWORD_NOT_SECRET_AFTER,
+  PASSWORD_NOT_SECRET_BEFORE,
+  INSTRUCTION_LEAD_INS,
+  INSTRUCTION_LEAD_INS_MAX,
+  INSTRUCTION_MODALS,
+  SECRET_REQUEST_GAP_WORDS,
   MISTAKE_ADVERBS,
   MISTAKE_PHRASES,
   MONEY_MOVED_VERBS,
@@ -193,7 +215,12 @@ const CREDENTIAL_UPPER_RE = /\b(?:PIN|OTP)\b/g;
 // (bounded, same sentence). Credential words inside it are not requests.
 const NEGATED_REQUEST_RE = re(
   `${words(NEGATION_WORDS)}(?:\\s+${anyOf(NEGATION_HELPER_WORDS)}){0,${NEGATION_GOVERNED_MAX_WORDS}}\\s+` +
-    `${anyOf([...FINANCIAL_REQUEST_VERBS, ...CODE_SHARE_VERBS])}\\b(?:[^.!?\\n]|(?<=\\d)\\.(?=\\d)){0,${REQUEST_PROXIMITY_CHARS}}`,
+    `${anyOf([...FINANCIAL_REQUEST_VERBS, ...CODE_SHARE_VERBS, ...SECRET_HAND_OVER_VERBS, ...SECRET_REQUEST_VERBS])}` +
+    `\\b(?:[^.!?\\n]|(?<=\\d)\\.(?=\\d)){0,${REQUEST_PROXIMITY_CHARS}}`,
+);
+// A code being delivered, not requested: "Your OTP is 482913", "one-time password: 5590".
+const DELIVERED_CODE_RE = re(
+  `${words(DELIVERED_CODE_TERMS)}(?:\\s+is\\s*:?|\\s*:)\\s*\\d{${DELIVERED_CODE_DIGITS_MIN},${DELIVERED_CODE_DIGITS_MAX}}\\b`,
 );
 
 // ---------------------------------------------------------------------------
@@ -277,12 +304,57 @@ const SECRECY_PEOPLE_RE = re(`${words(SECRECY_NEGATIONS)}\\s+${anyOf(SECRECY_VER
 // ---------------------------------------------------------------------------
 // code-sharing-request
 // ---------------------------------------------------------------------------
-const CODE = `(?:\\b\\d{1,${CODE_DIGIT_LENGTH_MAX}}[- ]digit\\s+(?:[a-z-]{1,20}\\s+)?code\\b|${words(CODE_TERMS)})`;
+// "the code we texted you", "the code I just sent to you"
+const SENT_CODE = `\\bcode\\s+(?:that\\s+)?${anyOf(CODE_SENDERS)}\\s+(?:just\\s+)?${anyOf(CODE_SENT_VERBS)}\\b`;
+const CODE =
+  `(?:\\b\\d{1,${CODE_DIGIT_LENGTH_MAX}}[- ]digit\\s+(?:[a-z-]{1,20}\\s+)?code\\b|${words(CODE_TERMS)}|${SENT_CODE})`;
 // "reply with the 6-digit code", "share the verification code"
 const CODE_SHARE_RE = re(`${NOT_GOVERNED}${words(CODE_SHARE_VERBS)}${NEAR}${CODE}`);
+
+// Secret-code family: OTP, PIN, 2FA code and the CODE terms above, but only with a hand-over
+// context, so "Send the OTP" alone stays a plain credential-request.
+// "pin" counts after an owner word or a list comma ("your PIN", "password, PIN") or before
+// "code"/"number"; "pin this post" does not.
+const PIN = `(?:(?:,\\s?|\\b${anyOf(PIN_OWNERS)}\\s+)pin\\b|\\bpin\\s+${anyOf(PIN_SUFFIXES)}\\b)`;
+const SECRET_CODE = `(?:${words(SECRET_CODE_TERMS)}|${PIN}|${CODE})`;
+/**
+ * Verb -> object gap: at most `maxWords` words in the same sentence, commas allowed (lists),
+ * and no word that opens a new clause ("tell us IF you did not get your OTP"). Word characters,
+ * commas and spaces are disjoint classes, so the gap is unambiguous and matching stays linear.
+ */
+const wordGap = (maxWords) =>
+  `(?:,?\\s(?!${anyOf(GAP_STOP_WORDS)}\\b)[a-z0-9'’-]{1,20}){0,${maxWords}}?,?\\s`;
+const SECRET_GAP = wordGap(SECRET_GAP_WORDS_MAX);
+const HAND_OVER = `${NOT_GOVERNED}${words(SECRET_HAND_OVER_VERBS)}`;
+const SECRET_RECIPIENT = anyOf(SECRET_RECIPIENTS);
+const SECRET_CODE_SHARE_RE = re(
+  [
+    // "Send us your password and otp", "give us your login password, PIN and the 2FA code"
+    `${HAND_OVER}\\s+${SECRET_RECIPIENT}\\b${SECRET_GAP}${SECRET_CODE}`,
+    // "Please send your OTP to this number"
+    `${HAND_OVER}${SECRET_GAP}${SECRET_CODE}${near(SECRET_RECIPIENT_PROXIMITY_CHARS)}\\bto\\s+${SECRET_RECIPIENT}\\b`,
+    // "Reply with your PIN" (the reply itself goes back to the sender)
+    `${NOT_GOVERNED}${words(SELF_ADDRESSED_VERBS)}${SECRET_GAP}${SECRET_CODE}`,
+  ].join("|"),
+);
+
 // "We sent you a verification code ... Please forward it to us": the code comes first, then a
 // pronoun hand-over within CODE_PRONOUN_PROXIMITY_CHARS (may cross a sentence end).
-const CODE_MENTION_RE = re(CODE);
+const CODE_MENTION_RE = re(SECRET_CODE);
+// Floor 4.16 (not a signal): an instruction to the reader to hand over a password, PIN,
+// passcode, login or security answer. Instruction = the verb opens a sentence or clause
+// (optionally after "please", "kindly"...) or follows "you must", "we need you to"...
+// "We will never ask you to send your password" and "If you share your password" are not.
+const LEAD_INS = `(?:${anyOf(INSTRUCTION_LEAD_INS)}\\s+){0,${INSTRUCTION_LEAD_INS_MAX}}`;
+const CLAUSE_START = `(?<=^|[.!?:;,(\\n"“]\\s?)`;
+const SECRET_TERM =
+  `(?:(?<!\\b${anyOf(PASSWORD_NOT_SECRET_BEFORE)}\\s)${anyOf(SECRET_REQUEST_TERMS)}\\b` +
+  `(?!\\s+${anyOf(PASSWORD_NOT_SECRET_AFTER)}\\b)|${PIN})`;
+const SECRET_REQUEST_RE = re(
+  `(?:${CLAUSE_START}|\\b${anyOf(INSTRUCTION_MODALS)}\\s+)${LEAD_INS}${words(SECRET_REQUEST_VERBS)}` +
+    `(?:\\s+${SECRET_RECIPIENT}\\b)?${wordGap(SECRET_REQUEST_GAP_WORDS)}${SECRET_TERM}`,
+);
+
 const PRONOUN_HAND_OVER_RE = re(
   `${NOT_GOVERNED}${words(CODE_SHARE_VERBS)}\\s+${anyOf(CODE_PRONOUNS)}\\s+(?:back\\s+)?to\\s+${anyOf(CODE_RECIPIENTS)}\\b`,
 );
@@ -373,7 +445,7 @@ function detectAttachment(input) {
 }
 
 function detectCodeSharing(norm) {
-  const direct = findAll(norm, CODE_SHARE_RE);
+  const direct = [...findAll(norm, CODE_SHARE_RE), ...findAll(norm, SECRET_CODE_SHARE_RE)];
   const pronoun = followedBy(
     findAll(norm, CODE_MENTION_RE),
     findAll(norm, PRONOUN_HAND_OVER_RE),
@@ -418,11 +490,11 @@ export function detectContent(input) {
     URGENCY_SCARCITY_RE,
     URGENCY_IMMEDIACY_RE,
   ]);
-  const negatedRequests = findAll(norm, NEGATED_REQUEST_RE);
+  const notRequests = [...findAll(norm, NEGATED_REQUEST_RE), ...findAll(norm, DELIVERED_CODE_RE)];
   const credential = signalFrom(
     "credential-request",
     W_CREDENTIAL_REQUEST,
-    outside(matchesInOrder(norm, [CREDENTIAL_EN_RE, CREDENTIAL_UPPER_RE]), negatedRequests),
+    outside(matchesInOrder(norm, [CREDENTIAL_EN_RE, CREDENTIAL_UPPER_RE]), notRequests),
   );
   const prize = phraseSignal(norm, "prize-lottery", W_PRIZE_LOTTERY, [PRIZE_RE, CONGRATS_RE, MONEY_RE, PERCENT_RETURN_RE]);
   const advanceFee = phraseSignal(norm, "advance-fee-scheme", W_ADVANCE_FEE_SCHEME, [
@@ -467,5 +539,10 @@ export function detectContent(input) {
     ...mistakenPayment.phrases,
     ...remoteAccess.phrases,
   ]);
-  return { flags, cursedPhrases, paymentInstruction: findAll(norm, PAYMENT_INSTRUCTION_RE).length > 0 };
+  return {
+    flags,
+    cursedPhrases,
+    paymentInstruction: findAll(norm, PAYMENT_INSTRUCTION_RE).length > 0,
+    secretRequest: findAll(norm, SECRET_REQUEST_RE).length > 0,
+  };
 }

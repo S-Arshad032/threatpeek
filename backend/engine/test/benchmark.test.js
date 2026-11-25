@@ -17,11 +17,11 @@ const BENGALI_SCRIPT = new RegExp(
 describe("benchmark dev set", () => {
   const set = loadSet("dev");
 
-  it("is well formed: 30 scam and 30 benign, English only, reserved domains", () => {
-    expect(set).toHaveLength(60);
-    expect(set.filter((m) => m.label === "scam")).toHaveLength(30);
-    expect(set.filter((m) => m.label === "benign")).toHaveLength(30);
-    expect(new Set(set.map((m) => m.id)).size).toBe(60);
+  it("is well formed: 35 scam and 35 benign, English only, reserved domains", () => {
+    expect(set).toHaveLength(70);
+    expect(set.filter((m) => m.label === "scam")).toHaveLength(35);
+    expect(set.filter((m) => m.label === "benign")).toHaveLength(35);
+    expect(new Set(set.map((m) => m.id)).size).toBe(70);
     for (const m of set) {
       expect(BENGALI_SCRIPT.test(m.text)).toBe(false);
       expect(REAL_TLD.test(m.text), m.id).toBe(false);
@@ -36,5 +36,30 @@ describe("benchmark dev set", () => {
     const ev = evaluate(set);
     expect(ev.detectionRate).toBeGreaterThanOrEqual(BENCHMARK_MIN_DETECTION_RATE);
     expect(ev.falseAlarmRate).toBeLessThanOrEqual(BENCHMARK_MAX_FALSE_ALARM_RATE);
+  });
+});
+
+// Format only. Scores on the held-out sets are never asserted, so they stay an honest measure.
+describe("benchmark held-out sets are well formed", () => {
+  for (const [name, size] of [["heldout", 40], ["heldout2", 30]]) {
+    it(`${name}: ${size / 2} scam and ${size / 2} benign, English only, reserved domains`, () => {
+      const set = loadSet(name);
+      expect(set).toHaveLength(size);
+      expect(set.filter((m) => m.label === "scam")).toHaveLength(size / 2);
+      expect(set.filter((m) => m.label === "benign")).toHaveLength(size / 2);
+      expect(new Set(set.map((m) => m.id)).size).toBe(size);
+      for (const m of set) {
+        expect(BENGALI_SCRIPT.test(m.text)).toBe(false);
+        expect(REAL_TLD.test(m.text), m.id).toBe(false);
+        for (const [, host] of m.text.matchAll(URL_HOST)) {
+          expect(RESERVED_OR_DOC_IP.test(host), `${m.id}: ${host}`).toBe(true);
+        }
+      }
+    });
+  }
+  it("no message text or id is repeated across dev, heldout and heldout2", () => {
+    const all = ["dev", "heldout", "heldout2"].flatMap((n) => loadSet(n));
+    expect(new Set(all.map((m) => m.text)).size).toBe(all.length);
+    expect(new Set(all.map((m) => m.id)).size).toBe(all.length);
   });
 });

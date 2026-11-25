@@ -63,7 +63,21 @@ We measured the rules engine alone (no AI, no Safe Browsing) on two labelled set
 
 On the dev set the rules flag 93% of scams with no false alarms. That number is higher because the rules were tuned on it. The held-out set shows how the rules do on wording they were not tuned on. The held-out misses include both advance-fee scams, and the card-detail, job-offer and tech-support scams, all worded in ways the rules had not seen. Most scams that are caught land in Skeptical, not Poltergeist.
 
-These are small, synthetic, English-only test sets that we wrote ourselves, with fictional brands. They are not a guarantee of how ThreatPeek does on real messages. Measured on 23 November 2026. Run `npm run benchmark -- --set=heldout` in `backend/engine` to reproduce; full results are in [RESULTS.md](backend/engine/benchmark/RESULTS.md).
+The numbers above were measured on 23 November 2026.
+
+### Update, 25 November 2026: direct password and OTP requests
+
+"Send us your password and otp" used to score 20 (Pookie). We added rules for a request to hand over a one-time code, PIN or password, and a new floor: a direct instruction to send a password scores at least 45 (Skeptical). Before changing any rule we wrote a second held-out set of 30 new messages (15 scams, mostly asking for passwords or codes, and 15 normal messages, including real one-time-code and password-reset mails). We ran it once before and once after the change, and tuned only on 10 new messages added to the dev set:
+
+| Held-out set 2 (15 scams, 15 normal messages) | Before | After |
+|---|---|---|
+| Scams flagged (score 31 or more) | 27% (4/15) | **47% (7/15)** |
+| Scams scored high risk (70 or more) | 7% (1/15) | 7% (1/15) |
+| Normal messages wrongly flagged | 7% (1/15) | 7% (1/15) |
+
+The first held-out set did not change (65% flagged, 15% high risk, 0% false alarms), and neither did any of its 40 scores. The dev set is now 70 messages: 94% of scams flagged, no false alarms. Held-out set 2 still misses 8 scams, among them code requests without a code word ("the 6 digit number on your screen", "a code is coming, can u text it to me"), a request sent to "all customers", and non-credential scams (romance, delivery fee, job offer). Its one false alarm is a real delivery mail that tells you to give the courier your 4-digit delivery code.
+
+All of these are small, synthetic, English-only test sets, written by the same author, with fictional brands. They are not a guarantee of how ThreatPeek does on real messages. Run `npm run benchmark -- --set=heldout` (or `--set=heldout2`, `--set=dev`) in `backend/engine` to reproduce; full results are in [RESULTS.md](backend/engine/benchmark/RESULTS.md).
 
 ## Safety and honesty
 

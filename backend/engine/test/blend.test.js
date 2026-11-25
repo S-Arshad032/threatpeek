@@ -80,6 +80,15 @@ describe("blend: hard floors", () => {
   it("4.15: mistaken-payment >= 40", () => {
     expect(blend(25, false, null, ["mistaken-payment"])).toBe(40);
   });
+  it("4.16: context.secretRequest >= 45", () => {
+    expect(blend(20, false, null, ["credential-request"], { secretRequest: true })).toBe(45);
+    expect(blend(20, false, 0, ["credential-request"], { secretRequest: true })).toBe(45);
+    expect(blend(20, false, 80, ["credential-request"], { secretRequest: true })).toBe(47); // already higher
+  });
+  it("credential-request alone has no floor (no secretRequest)", () => {
+    expect(blend(20, false, null, ["credential-request"])).toBe(20);
+    expect(blend(20, false, null, ["credential-request"], { secretRequest: false })).toBe(20);
+  });
   it("remote-access-request alone has no floor", () => {
     expect(blend(25, false, null, ["remote-access-request"])).toBe(25);
   });
