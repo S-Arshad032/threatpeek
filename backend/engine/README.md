@@ -62,7 +62,22 @@ npm run benchmark -- --set=heldout2   # second held-out set (30 messages, creden
 npm run benchmark -- --set=heldout3   # reserved third held-out set (empty for now, see below)
 ```
 
-**heldout3 is reserved.** [`benchmark/heldout3.json`](benchmark/heldout3.json) has an empty `messages` array on purpose. It is kept for 30 fresh messages (15 scam, 15 benign) written by someone who has NOT seen the rules, or by the author before reading any engine output for them. Add them, run `--set=heldout3` once, and never tune rules on them afterwards. Until then the run prints this note and scores nothing.
+**heldout3** ([`benchmark/heldout3.json`](benchmark/heldout3.json), 30 messages: 15 scam, 15 benign) was written by a third party (Gemini) and was not seen while the rules were written. Never tune rules on it. Unlike the other sets it uses real Bangladeshi service names (bKash, Nagad, DESCO, RedX...) with defanged throwaway domains, and its file is `{ note, messages }`. Results with `score(text)` only, measured once on 25 November 2026:
+
+| heldout3 | Value |
+|---|---|
+| Scams flagged (score 31 or more) | 60% (9/15) |
+| Scams scored 50 or more | 53% (8/15) |
+| Scams scored high risk (70 or more) | 13% (2/15) |
+| Normal messages wrongly flagged (31 or more) | 0% (0/15) |
+
+Known limitations:
+
+- The original draft contained 3 romanized-Bengali messages. They were replaced by English versions because the engine is English-only, so this set says nothing about mixed-language messages, which real Bangladeshi scams often are.
+- `h3-s06` (scam: "my main number got blocked... I need an urgent 3,000 BDT bKash transfer") and `h3-b13` (normal: "my card got declined... can you send me 600 BDT on bKash right now?") are near-twins. A rule engine cannot reliably tell them apart: the scam scored 15 (only `urgency-en`), the normal one 0. Both stay Pookie.
+- Misses: a task-job offer that asks you to message HR on Telegram (25), a utility disconnection threat (25), the friend-impersonation money request (15), a fake Gmail sign-in alert (10), a recruiter asking for an onboarding fee (0), and a subscription "update your payment method" phish (25).
+
+Like the other sets, heldout3 is small and synthetic; the numbers are not a guarantee.
 
 Each run scores every message with `score(text)` only (no AI, no Safe Browsing). It prints counts by label and verdict, detection rate (scam scored 31 or more), strong detection rate (70 or more), false-alarm rate (normal message scored 31 or more), detection per scam category, and every miss and false alarm. It also updates that set's section of [`benchmark/RESULTS.md`](benchmark/RESULTS.md). The sets are small, synthetic and English-only, and all were written by the same author, so the numbers are not a guarantee.
 

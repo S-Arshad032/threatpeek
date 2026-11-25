@@ -1,4 +1,35 @@
 {
-  "note": "Reserved for 30 fresh messages (15 scam / 15 benign) that the rule author has NOT seen while writing rules. Add them before looking at any engine output, run once with --set=heldout3, and never tune rules on them. Same format as heldout.json: { id, text, label: scam|benign, category }.",
-  "messages": []
+  "note": "Third held-out set: 30 messages (15 scam, 15 benign) written by a third party (Gemini) and NOT seen while the rules were written. English-only: the original draft had 3 romanized-Bengali messages, replaced by English versions because the engine is English-only. Never tune rules on this set. Messages use the same fields as heldout2.json: { id, label, category, text }.",
+  "messages": [
+    {"id": "h3-s01", "label": "scam", "category": "otp-theft", "text": "Your bKash account has been flagged for unusual activity. Verify your PIN and 6-digit OTP immediately at bkash-secure-help[.]xyz to avoid suspension."},
+    {"id": "h3-s02", "label": "scam", "category": "card-info-request", "text": "Dear customer, your debit card ending in 4821 is temporarily blocked. Restore access within 6 hours by entering your full card number and CVV at card-verify-bd[.]info."},
+    {"id": "h3-s03", "label": "scam", "category": "delivery-fee-smishing", "text": "Delivery failed: Your RedX parcel could not be delivered due to an incomplete address. Pay a 45 BDT re-delivery fee here: track-parcel-bd[.]com/redx"},
+    {"id": "h3-s04", "label": "scam", "category": "job-offer", "text": "Congratulations! You have been selected for a remote Data Entry & Product Review role paying 4,500 BDT daily. No prior experience required—message HR on Telegram to start."},
+    {"id": "h3-s05", "label": "scam", "category": "utility-disconnection", "text": "FINAL WARNING: Your DESCO electricity line is scheduled for disconnection tonight at 11 PM due to an unpaid bill. Clear dues now via pay-utility-bd[.]online"},
+    {"id": "h3-s06", "label": "scam", "category": "friend-impersonation", "text": "Hey bro, my main number got blocked so I am texting from this temporary one. I need an urgent 3,000 BDT bKash transfer right now, I will pay you back tomorrow morning."},
+    {"id": "h3-s07", "label": "scam", "category": "prize-lottery", "text": "You won 15,00,000 BDT in the Grameenphone & WhatsApp 2026 Lucky Draw! Send your NID copy and a 1,200 BDT processing fee to claim your prize today."},
+    {"id": "h3-s08", "label": "scam", "category": "phishing-account-security", "text": "Security Alert: Someone in Singapore logged into your Gmail account. If this was not you, cancel the session immediately at google-security-check[.]support"},
+    {"id": "h3-s09", "label": "scam", "category": "job-offer", "text": "Hi, I am Sarah from NexaGlobal Hiring. We reviewed your LinkedIn profile and have a Junior Web Developer role ($1,800/mo). Complete a quick verification and 800 BDT onboarding fee to lock your slot."},
+    {"id": "h3-s10", "label": "scam", "category": "customs-fee", "text": "Customs Notice: An international courier in your name is on hold at Hazrat Shahjalal Airport due to unpaid customs duty. Pay online now to prevent seizure: bd-customs-clear[.]org"},
+    {"id": "h3-s11", "label": "scam", "category": "investment-crypto", "text": "Join our VIP Crypto & Forex Signals group and turn $150 into $2,400 in 48 hours with 99% accuracy. Only 3 slots left—DM admin for payment details."},
+    {"id": "h3-s12", "label": "scam", "category": "seed-phrase", "text": "Your MetaMask wallet session has expired. Re-enter your 12-word secret recovery phrase at wallet-sync-fix[.]io so your funds are not frozen."},
+    {"id": "h3-s13", "label": "scam", "category": "otp-theft", "text": "Hello, this is Nagad customer support. 5,000 BDT was accidentally credited to your account—please read back the 6-digit OTP sent to your phone so we can reverse it, otherwise your account will be frozen."},
+    {"id": "h3-s14", "label": "scam", "category": "phishing-account-suspended", "text": "Your Netflix family plan payment failed. Update your payment method within 12 hours at billing-update-verify[.]com or your account will be permanently deleted."},
+    {"id": "h3-s15", "label": "scam", "category": "official-fine", "text": "Urgent tax notice: An unpaid income tax penalty is registered against your TIN. Settle immediately through tax-portal-bd[.]click to avoid legal action."},
+    {"id": "h3-b01", "label": "benign", "category": "otp-delivery", "text": "Your Nagad OTP is 739204. Do not share this code with anyone, including Nagad representatives."},
+    {"id": "h3-b02", "label": "benign", "category": "bank-alert", "text": "A/C 9140 debited by BDT 1,250.00 at Unimart Gulshan on 25-Nov-26. Avl Bal: BDT 34,820.50. For queries, call 16247."},
+    {"id": "h3-b03", "label": "benign", "category": "shipping-notice", "text": "Your Pathao Parcel (#PTH883920) is out for delivery today with rider Rafiq (017XXXXXXXX). Cash to collect: BDT 890."},
+    {"id": "h3-b04", "label": "benign", "category": "job-application", "text": "Thank you for applying to the Backend Engineer (Node.js) position at Brain Station 23. Our recruitment team will review your resume and reach out if shortlisted."},
+    {"id": "h3-b05", "label": "benign", "category": "otp-delivery", "text": "Your Google verification code is 518923."},
+    {"id": "h3-b06", "label": "benign", "category": "payment-reminder", "text": "Reminder: Your semester tuition fee payment deadline is December 3, 2026. Please complete payment via the official university student portal before 5:00 PM."},
+    {"id": "h3-b07", "label": "benign", "category": "shipping-notice", "text": "Your Steadfast Courier shipment (#SF449102) has been delivered and received at the front desk."},
+    {"id": "h3-b08", "label": "benign", "category": "friendly-chat", "text": "Hey, are we still meeting at the TSC cafeteria around 4:30 PM to finalize the slides before tomorrow's presentation?"},
+    {"id": "h3-b09", "label": "benign", "category": "bill-notice", "text": "DESCO Bill Alert: Your monthly electricity bill of BDT 2,140 for November 2026 has been generated. Due date: 15-Dec-2026."},
+    {"id": "h3-b10", "label": "benign", "category": "job-application", "text": "Hi, this is Tanvir from HR at TigerIT. Are you available for a 20-minute technical screening call tomorrow afternoon regarding the Full-Stack role?"},
+    {"id": "h3-b11", "label": "benign", "category": "bank-alert", "text": "A/C 3029 credited with BDT 18,500.00 on 24-Nov-26 as salary transfer. Avl Bal: BDT 62,190.00."},
+    {"id": "h3-b12", "label": "benign", "category": "otp-delivery", "text": "Your GitHub sign-in code is 804119. If you did not request this, you can safely ignore this message."},
+    {"id": "h3-b13", "label": "benign", "category": "friend-money-request", "text": "Hey, my card got declined at the restaurant counter—can you send me 600 BDT on bKash right now? I will hand you the cash as soon as we step outside."},
+    {"id": "h3-b14", "label": "benign", "category": "shipping-notice", "text": "Your Foodpanda order (#FP902314) has been delivered. Rate your experience in the app."},
+    {"id": "h3-b15", "label": "benign", "category": "work-chat", "text": "Team, please push your latest PR to staging before tonight's code review so we can test the new endpoints."}
+  ]
 }
