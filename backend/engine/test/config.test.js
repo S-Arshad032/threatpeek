@@ -16,7 +16,7 @@ const PHRASE_SIGNALS = [
 
 describe("config", () => {
   it("has an explanation template and category for every signal id", () => {
-    expect(C.ALL_SIGNAL_IDS).toHaveLength(20);
+    expect(C.ALL_SIGNAL_IDS).toHaveLength(21);
     for (const id of C.ALL_SIGNAL_IDS) {
       expect(typeof C.EXPLANATION_TEMPLATES[id]).toBe("string");
       expect(C.EXPLANATION_TEMPLATES[id].length).toBeGreaterThan(0);

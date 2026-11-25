@@ -1,5 +1,6 @@
 // Identity detector: typosquatting, homograph-punycode, display-name-mismatch.
-// All signals are Identity/Auth. Produces no cursed phrases.
+// All signals are Identity/Auth. Produces no cursed phrases. Hostnames are read from the refanged
+// text, so "galactibank-login[.]example" is checked like "galactibank-login.example".
 
 import {
   W_TYPOSQUATTING,
@@ -15,6 +16,7 @@ import {
 import { extractAsciiHostnames, extractUnicodeHostnames, registrableLabel, isLegitimate } from "../util/hostname.js";
 import { levenshtein } from "../util/levenshtein.js";
 import { makeRedFlag } from "../util/flag.js";
+import { refang } from "../util/normalize.js";
 
 const PUNYCODE_PREFIX = "xn--";
 const LATIN_RE = /[A-Za-z]/;
@@ -94,9 +96,10 @@ function detectDisplayNameMismatch(input, brands) {
  * @param {Array<{name: string, domains: string[]}>} brands
  */
 export function detectIdentity(input, brands) {
+  const text = refang(input);
   const flags = [
-    detectTyposquatting(input, brands),
-    detectHomograph(input),
+    detectTyposquatting(text, brands),
+    detectHomograph(text),
     detectDisplayNameMismatch(input, brands),
   ].filter(Boolean);
   return { flags, cursedPhrases: [] };

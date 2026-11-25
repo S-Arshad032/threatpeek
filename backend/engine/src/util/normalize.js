@@ -7,16 +7,60 @@
 //   2. Remove zero-width and control characters (line breaks and tabs are kept as whitespace).
 //   3. Collapse each run of whitespace to one character: "\n" if the run had a line break
 //      (sentence boundaries matter to the proximity rules), otherwise " ".
-//   4. Inside a token that also contains letters, map leetspeak symbols (@->a, 0->o, 1->i,
+//   4. Refang defanged links: "evil[.]com", "evil(.)com", "evil[dot]com", "evil dot com",
+//      "hxxps://", "https[:]//" become ordinary links (see refang below).
+//   5. Inside a token that also contains letters, map leetspeak symbols (@->a, 0->o, 1->i,
 //      3->e, 5->s, $->s). Plain numbers ("1000000", "$100"), amounts ("$1million"), number+unit
 //      ("10am", "2nd") and letters+number codes ("mp3", "room101") are left alone.
-//   5. Collapse spaced-out words: LEET_SPACED_MIN_LETTERS or more single letters separated by
+//   6. Collapse spaced-out words: LEET_SPACED_MIN_LETTERS or more single letters separated by
 //      single spaces ("p a s s w o r d" -> "password").
 //
 // Linear time: every step is one pass over the text; the regexes used are bounded and anchored
 // to one token.
 
-import { LEET_MAP, SPACED_LETTERS_MIN } from "../config.js";
+import { LEET_MAP, SPACED_LETTERS_MIN, SPACED_DOT_TLDS, SPACED_DOT_NOT_AFTER } from "../config.js";
+
+// ---------------------------------------------------------------------------
+// Defanged links. Each alternative is a fixed, short pattern, so matching stays linear.
+// ---------------------------------------------------------------------------
+const TLD_ALTERNATION = [...SPACED_DOT_TLDS].sort((a, b) => b.length - a.length).join("|");
+const NOT_AFTER = SPACED_DOT_NOT_AFTER.join("|");
+const DEFANG_SOURCE = [
+  String.raw`[\[({]\s?(?:\.|dot)\s?[\])}]`, // [.]  (.)  {.}  [dot]  (dot)
+  String.raw`(?<=[a-z0-9])(?<!\b(?:${NOT_AFTER}))\s{1,3}dot\s{1,3}(?=(?:${TLD_ALTERNATION})(?![\p{L}\p{N}_-]))`, // "evil dot com"
+  String.raw`\bhxxp(?=s?(?::|\[:\])\/\/)`, // hxxp://, hxxps://
+  String.raw`(?<=\bhttps?|\bhxxps?)\[:\](?=\/\/)`, // https[:]//
+].join("|");
+const DEFANG_RE = new RegExp(DEFANG_SOURCE, "giu");
+
+/** What a defanged piece stands for: "hxxp" -> "http", "[:]" -> ":", anything else -> ".". */
+function refangPiece(piece) {
+  const lower = piece.toLowerCase();
+  if (lower === "hxxp") return piece.replace(/x/g, "t").replace(/X/g, "T"); // keeps the length
+  if (lower === "[:]") return ":";
+  return ".";
+}
+
+/**
+ * Turns defanged links back into ordinary ones: "evil[.]com" -> "evil.com",
+ * "hxxps://evil dot com" -> "https://evil.com". Used by the link and identity detectors, which
+ * read the raw text; normalize() does the same while keeping its offset map.
+ * @param {string} input
+ * @returns {string}
+ */
+export function refang(input) {
+  return input.replace(DEFANG_RE, refangPiece);
+}
+
+/**
+ * The first defanged piece in the raw input, or null.
+ * @param {string} input
+ * @returns {{ index: number, length: number } | null}
+ */
+export function findDefang(input) {
+  for (const m of input.matchAll(DEFANG_RE)) return { index: m.index, length: m[0].length };
+  return null;
+}
 
 const ZERO_WIDTH_RE = /[­᠎​-‏‪-‮⁠-⁤﻿]/u;
 const CONTROL_RE = /\p{Cc}/u;
@@ -82,7 +126,43 @@ function foldAndCollapse(input) {
   return out;
 }
 
-/** Step 4: leetspeak inside tokens that also contain letters. */
+/**
+ * Step 4: refang defanged links in place. A piece that keeps its length ("hxxp") is rewritten
+ * character by character; a shorter one ("[.]") becomes characters that span the whole original
+ * piece, so toOriginal still maps back to what the user pasted.
+ */
+function refangChars(chars) {
+  let joined = "";
+  const charAt = []; // index into `chars` for each code unit of `joined`
+  chars.forEach((c, k) => {
+    joined += c.lower;
+    for (let u = 0; u < c.lower.length; u++) charAt.push(k);
+  });
+  const out = [];
+  let next = 0; // first char not yet copied
+  for (const m of joined.matchAll(DEFANG_RE)) {
+    const first = charAt[m.index];
+    const last = charAt[m.index + m[0].length - 1];
+    if (first < next) continue;
+    for (let k = next; k < first; k++) out.push(chars[k]);
+    const casedPiece = chars.slice(first, last + 1).map((c) => c.cased).join("");
+    const lowerRep = refangPiece(m[0]);
+    const casedRep = refangPiece(casedPiece);
+    if (lowerRep.length === last - first + 1) {
+      for (let k = first; k <= last; k++) {
+        out.push({ ...chars[k], lower: lowerRep[k - first], cased: casedRep[k - first] });
+      }
+    } else {
+      const span = { start: chars[first].start, end: chars[last].end };
+      for (let k = 0; k < lowerRep.length; k++) out.push({ lower: lowerRep[k], cased: casedRep[k], ...span });
+    }
+    next = last + 1;
+  }
+  for (let k = next; k < chars.length; k++) out.push(chars[k]);
+  return out;
+}
+
+/** Step 5: leetspeak inside tokens that also contain letters. */
 function mapLeet(chars) {
   let i = 0;
   while (i < chars.length) {
@@ -108,7 +188,7 @@ function mapLeet(chars) {
   }
 }
 
-/** Step 5: "p a s s w o r d" -> "password" (the spaces are dropped, offsets kept). */
+/** Step 6: "p a s s w o r d" -> "password" (the spaces are dropped, offsets kept). */
 function collapseSpacedLetters(chars) {
   const isLetter = (k) => k >= 0 && k < chars.length && LETTER_RE.test(chars[k].lower);
   const isSpace = (k) => k >= 0 && k < chars.length && chars[k].lower === " ";
@@ -141,7 +221,7 @@ function collapseSpacedLetters(chars) {
  * @returns {Normalized}
  */
 export function normalize(input) {
-  const chars = foldAndCollapse(input);
+  const chars = refangChars(foldAndCollapse(input));
   mapLeet(chars);
   const collapsed = collapseSpacedLetters(chars);
 

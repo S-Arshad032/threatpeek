@@ -24,6 +24,7 @@ export const W_SECRECY_PRESSURE = 10;
 export const W_CODE_SHARING_REQUEST = 30;
 export const W_MISTAKEN_PAYMENT = 25;
 export const W_REMOTE_ACCESS_REQUEST = 25;
+export const W_DEFANGED_LINK = 10;
 
 // ---------------------------------------------------------------------------
 // Category caps
@@ -154,6 +155,7 @@ export const SIGNAL_CATEGORY = Object.freeze({
   "code-sharing-request": CATEGORY_CONTENT,
   "mistaken-payment": CATEGORY_CONTENT,
   "remote-access-request": CATEGORY_CONTENT,
+  "defanged-link": CATEGORY_LINK,
 });
 
 export const CATEGORY_CAPS = Object.freeze({
@@ -172,6 +174,30 @@ export const DANGEROUS_EXTENSIONS = Object.freeze(["exe", "scr", "vbs", "bat", "
 export const JS_LIBRARY_ALLOWLIST = Object.freeze(["node", "react", "vue", "next", "nuxt", "express", "angular", "d3", "three"]);
 export const SECOND_LEVEL_LABELS = Object.freeze(["com", "co", "org", "net", "gov", "edu", "ac"]); // used with 2-letter country TLDs, e.g. com.bd, co.uk
 export const COUNTRY_TLD_LENGTH = 2;
+
+// Defanged links ("evil[.]com", "evil dot com", "hxxps://"). " dot " only counts before one of
+// these endings, so ordinary prose ("connect the dot") is left alone.
+// Also the endings that make a bare "name.ending" count as a link for the content signals.
+export const LINK_TLDS = Object.freeze([
+  ...RISKY_TLDS,
+  "com", "net", "org", "io", "info", "biz", "co", "me", "app", "site", "online", "live", "link",
+  "shop", "store", "club", "vip", "pro", "cc", "ly", "gl", "gd", "to", "id", "at", "us", "uk",
+  "in", "bd", "pk", "ru", "cn", "work", "support", "help", "page", "tech", "cloud",
+  "example", "test", "invalid",
+]);
+// URL shorteners hide the real destination.
+export const SHORTENER_DOMAINS = Object.freeze([
+  "bit.ly", "tinyurl.com", "t.co", "goo.gl", "is.gd", "cutt.ly", "rb.gy", "ow.ly", "shorturl.at",
+  "tiny.cc", "rebrand.ly", "s.id", "t.ly", "buff.ly", "v.gd", "shorte.st", "bitly.com",
+]);
+// The spaced form "evil dot com" only counts before these endings (no English words such as
+// "to", "in", "me", "us"), and never right after an article ("the dot com bubble").
+export const SPACED_DOT_TLDS = Object.freeze([
+  ...RISKY_TLDS, "com", "net", "org", "io", "info", "biz", "site", "online", "ly", "bd", "ru", "cn",
+  "example", "test", "invalid",
+]);
+export const SPACED_DOT_NOT_AFTER = Object.freeze(["the", "a", "an", "of", "and", "or", "big", "old", "new", "first"]);
+export const MAX_DEFANG_EVIDENCE_CHARS = 100; // characters kept on each side of a "[.]" in the evidence
 
 export const URGENCY_EN_PHRASES = Object.freeze([
   "act now",
@@ -712,6 +738,8 @@ export const EXPLANATION_TEMPLATES = Object.freeze({
     'The message says money was sent to you by mistake and asks you to send it back ("{e}"). This is a common trick: the first payment is fake or gets reversed, and the money you send is lost.',
   "remote-access-request":
     'The message asks you to install a remote-control program or give someone access to your device ("{e}"). Whoever controls your device can see your screen, your passwords and your bank.',
+  "defanged-link":
+    'The link "{e}" is written in a disguised way (for example "[.]" or "dot" instead of a dot). Scammers do this to slip links past spam filters. Treat it like a real link and do not open it.',
 });
 
 // Plain-English reasons attached to cursed phrases, keyed by the signal that produced them.

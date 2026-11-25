@@ -1,10 +1,13 @@
-// Link detector: raw-ip-url, risky-tld, link-text-mismatch. All Link category.
-// Produces no cursed phrases.
+// Link detector: raw-ip-url, risky-tld, link-text-mismatch, defanged-link. All Link category.
+// Produces no cursed phrases. Defanged links ("evil[.]com", "hxxps://") are refanged first, so
+// every check sees them as ordinary links.
 
 import {
   W_RAW_IP_URL,
   W_RISKY_TLD,
   W_LINK_TEXT_MISMATCH,
+  W_DEFANGED_LINK,
+  MAX_DEFANG_EVIDENCE_CHARS,
   RISKY_TLDS,
   IPV4_OCTET_MAX,
   IPV6_MIN_COLONS,
@@ -13,6 +16,7 @@ import {
 } from "../config.js";
 import { registrableDomain } from "../util/hostname.js";
 import { makeRedFlag } from "../util/flag.js";
+import { refang, findDefang } from "../util/normalize.js";
 
 // A trailing sentence dot is allowed, but not a dot that starts another hostname label.
 const IPV4_URL_RE = /https?:\/\/((?:\d{1,3}\.){3}\d{1,3})(?=\.?(?:[\s"'<>)\],;:\/?#]|$))/gi;
@@ -116,8 +120,30 @@ function detectLinkTextMismatch(input) {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// defanged-link
+// ---------------------------------------------------------------------------
+/** The whitespace-free token around the first defanged piece ("docs-share-view[.]com/role-402"). */
+function detectDefanged(input) {
+  const hit = findDefang(input);
+  if (hit === null) return null;
+  let start = hit.index;
+  let end = hit.index + hit.length;
+  // A spaced-out "evil dot com" keeps the words on both sides.
+  const isTokenChar = (ch) => ch !== undefined && !/[\s"'<>]/.test(ch);
+  while (start > 0 && hit.index - start < MAX_DEFANG_EVIDENCE_CHARS && isTokenChar(input[start - 1])) start--;
+  while (end < input.length && end - hit.index - hit.length < MAX_DEFANG_EVIDENCE_CHARS && isTokenChar(input[end])) end++;
+  return makeRedFlag("defanged-link", W_DEFANGED_LINK, input.slice(start, end));
+}
+
 /** @param {string} input */
 export function detectLinks(input) {
-  const flags = [detectRawIp(input), detectRiskyTld(input), detectLinkTextMismatch(input)].filter(Boolean);
+  const text = refang(input);
+  const flags = [
+    detectRawIp(text),
+    detectRiskyTld(text),
+    detectLinkTextMismatch(text),
+    detectDefanged(input),
+  ].filter(Boolean);
   return { flags, cursedPhrases: [] };
 }
