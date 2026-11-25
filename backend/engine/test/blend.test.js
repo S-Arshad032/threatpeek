@@ -101,6 +101,31 @@ describe("blend: hard floors", () => {
   });
 });
 
+describe("blend: scam-family floors (4.17-4.22)", () => {
+  it("each family signal lifts the score to its floor", () => {
+    expect(blend(25, false, null, ["delivery-scam"])).toBe(50); // 4.17
+    expect(blend(35, false, null, ["seed-phrase-request"])).toBe(70); // 4.18
+    expect(blend(25, false, null, ["investment-guarantee"])).toBe(55); // 4.19
+    expect(blend(25, false, null, ["task-job-scam"])).toBe(50); // 4.20
+    expect(blend(25, false, null, ["official-fine-threat"])).toBe(60); // 4.21
+    expect(blend(20, false, null, ["recruiter-bait"])).toBe(50); // 4.22
+  });
+  it("investment-guarantee with pressure or an unusual payment method reaches 70", () => {
+    expect(blend(40, false, null, ["urgency-en", "investment-guarantee"])).toBe(70);
+    expect(blend(45, false, null, ["investment-guarantee", "unusual-payment-method"])).toBe(70);
+    expect(blend(45, false, null, ["investment-guarantee", "prize-lottery"])).toBe(55);
+  });
+  it("the weak signals around the families have no floor of their own", () => {
+    expect(blend(10, false, null, ["defanged-link"])).toBe(10);
+    expect(blend(15, false, null, ["urgency-en"])).toBe(15);
+    expect(blend(25, false, null, ["urgency-en", "defanged-link"])).toBe(25);
+  });
+  it("family floors never lower a higher score", () => {
+    expect(blend(90, false, null, ["delivery-scam"])).toBe(90);
+    expect(blend(95, false, null, ["seed-phrase-request"])).toBe(95);
+  });
+});
+
 describe("blend: flag representation", () => {
   it("Array and Set give the same result", () => {
     const flags = ["typosquatting", "credential-request"];

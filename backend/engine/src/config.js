@@ -63,6 +63,15 @@ export const FLOOR_MISTAKEN_PAYMENT = 40; // mistaken-payment alone
 // answer ("Send us your password", "You must email us your login password"). Not a signal: the
 // content detector reports it as context.secretRequest. Lifts the score into "skeptical".
 export const FLOOR_SECRET_REQUEST = 45;
+// Scam families. Each floor sits on a compound signal (several cues in one message), never on a
+// single word, so one weak cue alone never lifts a message above 50.
+export const FLOOR_DELIVERY_SCAM = 50; // 4.17: parcel context + failed/held/"update delivery details" + a link
+export const FLOOR_SEED_PHRASE = 70; // 4.18: a request for a wallet recovery phrase or private key
+export const FLOOR_INVESTMENT = 55; // 4.19: guaranteed/multiplied returns + a trading or signals context
+export const FLOOR_INVESTMENT_PRESSURE = 70; // 4.19: the same + urgency-en or unusual-payment-method
+export const FLOOR_TASK_JOB = 50; // 4.20: paid "like videos" / trial-task job bait
+export const FLOOR_OFFICIAL_FINE = 60; // 4.21: fine/tax/police + pay + deadline or legal threat + a link
+export const FLOOR_RECRUITER_BAIT = 50; // 4.22: unsolicited recruiter + role + a doc/brief on an unfamiliar link
 
 // ---------------------------------------------------------------------------
 // Blend coefficients

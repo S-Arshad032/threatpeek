@@ -16,6 +16,13 @@ import {
   FLOOR_CODE_SHARING,
   FLOOR_MISTAKEN_PAYMENT,
   FLOOR_SECRET_REQUEST,
+  FLOOR_DELIVERY_SCAM,
+  FLOOR_SEED_PHRASE,
+  FLOOR_INVESTMENT,
+  FLOOR_INVESTMENT_PRESSURE,
+  FLOOR_TASK_JOB,
+  FLOOR_OFFICIAL_FINE,
+  FLOOR_RECRUITER_BAIT,
   SCORE_MIN,
   SCORE_MAX,
 } from "./config.js";
@@ -76,6 +83,18 @@ export function blend(l1Score, l2Hit, l3Score, flags, context) {
   // 4.16: "Send us your password" is a direct instruction to hand over a secret. The word
   // "password" alone (a reset mail, a security tip) has no floor; only the instruction does.
   if (context?.secretRequest === true) risk = Math.max(risk, FLOOR_SECRET_REQUEST); // 4.16
+
+  // 4.17-4.22: scam families. Every one of these signals already needs several cues together
+  // (see detectors/content.js), so the floor never rests on a single word.
+  if (has("delivery-scam")) risk = Math.max(risk, FLOOR_DELIVERY_SCAM); // 4.17
+  if (has("seed-phrase-request")) risk = Math.max(risk, FLOOR_SEED_PHRASE); // 4.18
+  if (has("investment-guarantee")) {
+    const pressured = has("urgency-en") || has("unusual-payment-method");
+    risk = Math.max(risk, pressured ? FLOOR_INVESTMENT_PRESSURE : FLOOR_INVESTMENT); // 4.19
+  }
+  if (has("task-job-scam")) risk = Math.max(risk, FLOOR_TASK_JOB); // 4.20
+  if (has("official-fine-threat")) risk = Math.max(risk, FLOOR_OFFICIAL_FINE); // 4.21
+  if (has("recruiter-bait")) risk = Math.max(risk, FLOOR_RECRUITER_BAIT); // 4.22
 
   return Math.round(Math.min(SCORE_MAX, Math.max(SCORE_MIN, risk))); // 4.13
 }
