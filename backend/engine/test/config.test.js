@@ -12,11 +12,17 @@ const PHRASE_SIGNALS = [
   "code-sharing-request",
   "mistaken-payment",
   "remote-access-request",
+  "delivery-scam",
+  "seed-phrase-request",
+  "investment-guarantee",
+  "task-job-scam",
+  "official-fine-threat",
+  "recruiter-bait",
 ];
 
 describe("config", () => {
   it("has an explanation template and category for every signal id", () => {
-    expect(C.ALL_SIGNAL_IDS).toHaveLength(21);
+    expect(C.ALL_SIGNAL_IDS).toHaveLength(27);
     for (const id of C.ALL_SIGNAL_IDS) {
       expect(typeof C.EXPLANATION_TEMPLATES[id]).toBe("string");
       expect(C.EXPLANATION_TEMPLATES[id].length).toBeGreaterThan(0);

@@ -1,6 +1,8 @@
 // Content detector: urgency-en, credential-request, suspicious-attachment, prize-lottery,
 // advance-fee-scheme, financial-info-request, unusual-payment-method, secrecy-pressure,
-// code-sharing-request, mistaken-payment, remote-access-request.
+// code-sharing-request, mistaken-payment, remote-access-request, and the scam families
+// delivery-scam, seed-phrase-request, investment-guarantee, task-job-scam, official-fine-threat,
+// recruiter-bait (each needs several cues together; some also need a link in the message).
 // All Content category. Every signal except suspicious-attachment also produces cursed phrases.
 //
 // Phrase signals match the NORMALIZED text (util/normalize.js: lowercase, NFKC, no zero-width
@@ -19,6 +21,13 @@ import {
   W_CODE_SHARING_REQUEST,
   W_MISTAKEN_PAYMENT,
   W_REMOTE_ACCESS_REQUEST,
+  W_DELIVERY_SCAM,
+  W_DELIVERY_SCAM_SHORTENER,
+  W_SEED_PHRASE_REQUEST,
+  W_INVESTMENT_GUARANTEE,
+  W_TASK_JOB_SCAM,
+  W_OFFICIAL_FINE_THREAT,
+  W_RECRUITER_BAIT,
   URGENCY_EN_PHRASES,
   URGENCY_EXTRA_PHRASES,
   URGENCY_AVOID_THREATS,
@@ -29,6 +38,9 @@ import {
   COMPROMISED_WORDS,
   DEADLINE_UNITS,
   DEADLINE_DIGITS_MAX,
+  DEADLINE_EXTRA_UNITS,
+  IN_DEADLINE_UNITS,
+  DEADLINE_NOT_AFTER,
   SCARCITY_UNITS,
   SCARCITY_DIGITS_MAX,
   IMMEDIACY_VERBS,
@@ -121,9 +133,54 @@ import {
   MONEY_SPACE_MAX,
   MAX_CURSED_PHRASES,
   CURSED_PHRASE_REASONS,
+  DELIVERY_CONTEXT_WORDS,
+  DELIVERY_ITEMS,
+  DELIVERY_FAILED_STATES,
+  DELIVERY_NOT_DELIVERED,
+  DELIVERY_ADDRESS_PROBLEMS,
+  DELIVERY_UPDATE_VERBS,
+  DELIVERY_DETAILS,
+  SEED_REQUEST_VERBS,
+  SEED_NOT_AFTER,
+  SEED_TERMS,
+  SEED_WORD_COUNTS,
+  WALLET_FIX_VERBS,
+  WALLET_WORDS,
+  INVESTMENT_PROMISE_PHRASES,
+  GUARANTEE_WORDS,
+  INVESTMENT_RESULT_WORDS,
+  MULTIPLY_VERBS,
+  RETURN_PERIODS,
+  INVESTMENT_CONTEXT_PHRASES,
+  MONEY_SYMBOLS,
+  MONEY_CODES,
+  AMOUNT_DIGITS_MAX,
+  TASK_PAY_VERBS,
+  TASK_PAY_PERIODS,
+  TASK_EASY_PHRASES,
+  TASK_TIME_UNITS,
+  TASK_ACTIONS,
+  TASK_OBJECTS,
+  TASK_WORKER_PHRASES,
+  TASK_REPLY_VERBS,
+  TASK_REPLY_WORDS,
+  TASK_CHAT_PHRASES,
+  FINE_TERMS,
+  FINE_PAY_VERBS,
+  FINE_LEGAL_THREATS,
+  FINE_DEADLINE_WORDS,
+  RECRUITER_INTROS,
+  RECRUITER_INTRO_LINKS,
+  RECRUITER_TITLES,
+  JOB_WORDS,
+  JOB_DOC_WORDS,
+  JOB_DOC_LINK_PARTS,
+  RECRUITER_TRUSTED_DOMAINS,
 } from "../config.js";
 import { makeRedFlag } from "../util/flag.js";
 import { normalize } from "../util/normalize.js";
+import { findLinks } from "../util/links.js";
+import { registrableDomain } from "../util/hostname.js";
 
 // ---------------------------------------------------------------------------
 // Regex builders. Phrases are fixed strings: escaped, joined with "|", single spaces become \s+
@@ -195,6 +252,12 @@ const URGENCY_DEVICE_RE = re(
   `${words(DEVICE_WORDS)}\\s+(?:has\\s+been|have\\s+been|is|was|may\\s+be)\\s+${anyOf(COMPROMISED_WORDS)}\\b`,
 );
 const URGENCY_DEADLINE_RE = re(`\\bwithin\\s+(?:the\\s+next\\s+)?\\d{1,${DEADLINE_DIGITS_MAX}}\\s*${anyOf(DEADLINE_UNITS)}\\b`);
+// "within 2 days", "within 12 hr", "in 24 hrs", but not "arrives in 24 hours" or "expires in 2 hours".
+const DEADLINE_ALLOWED = `(?<!\\b${anyOf(DEADLINE_NOT_AFTER)}\\s)`;
+const URGENCY_DEADLINE_EXTRA_RE = re(
+  `${DEADLINE_ALLOWED}\\bwithin\\s+(?:the\\s+next\\s+)?\\d{1,${DEADLINE_DIGITS_MAX}}\\s*${anyOf(DEADLINE_EXTRA_UNITS)}\\b` +
+    `|${DEADLINE_ALLOWED}\\bin\\s+(?:the\\s+next\\s+)?\\d{1,${DEADLINE_DIGITS_MAX}}\\s*${anyOf(IN_DEADLINE_UNITS)}\\b`,
+);
 const URGENCY_SCARCITY_RE = re(
   `\\bonly\\s+\\d{1,${SCARCITY_DIGITS_MAX}}\\s+${anyOf(SCARCITY_UNITS)}\\s+(?:left|remaining)\\b`,
 );
@@ -379,6 +442,85 @@ const REMOTE_ACCESS_RE = re(
 );
 
 // ---------------------------------------------------------------------------
+// Scam families. Every family needs several cues in the same message; links come from
+// util/links.js (defanged links count).
+// ---------------------------------------------------------------------------
+const RANGE_SEP = `\\s?(?:-|–|—|to|and)\\s?`;
+const NUM = `(?<![\\d,.])\\d[\\d,.]{0,${AMOUNT_DIGITS_MAX}}k?`;
+const SYM = `(?:${MONEY_SYMBOLS.map(escapeRegex).join("|")})`;
+const CODES = words(MONEY_CODES);
+// One amount with a currency marker: "$200", "3,500 BDT", "38k usdt".
+const CUR_AMOUNT = `(?:${SYM}\\s?${NUM}|${NUM}\\s?${CODES})`;
+// An amount or a range with a currency marker: "$50-$200", "2,000–6,000 BDT".
+const CUR_RANGE =
+  `(?:${SYM}\\s?${NUM}(?:${RANGE_SEP}(?:${SYM}\\s?)?${NUM})?(?:\\s?${CODES})?` +
+  `|${NUM}(?:${RANGE_SEP}${NUM})?\\s?${CODES})`;
+
+// delivery-scam
+const DELIVERY_CONTEXT_RE = wordsRegex(DELIVERY_CONTEXT_WORDS);
+const DELIVERY_FAILURE_RE = re(
+  [
+    words(DELIVERY_NOT_DELIVERED), // "could not be delivered"
+    // "Delivery failed", "your parcel is on hold"
+    `${words(DELIVERY_ITEMS)}\\s+(?:(?:is|was|has\\s+been|is\\s+now|is\\s+currently|has)\\s+)?${anyOf(DELIVERY_FAILED_STATES)}\\b`,
+    `${words(DELIVERY_ADDRESS_PROBLEMS)}\\s+(?:shipping\\s+|delivery\\s+|house\\s+)?address\\b`, // "incomplete address"
+    `${NOT_GOVERNED}${words(DELIVERY_UPDATE_VERBS)}\\s+(?:your\\s+|the\\s+)?${anyOf(DELIVERY_DETAILS)}\\b`, // "update shipping details"
+  ].join("|"),
+);
+
+// seed-phrase-request
+const SEED_TERM =
+  `(?:${words(SEED_TERMS)}` +
+  `|\\b${anyOf(SEED_WORD_COUNTS)}[- ]words?\\b(?:\\s+(?:recovery\\s+|seed\\s+|secret\\s+|backup\\s+)?(?:phrase|key|code)\\b)?)`;
+const SEED_VERB = `${NOT_GOVERNED}(?<!\\b${anyOf(SEED_NOT_AFTER)}\\s)${words(SEED_REQUEST_VERBS)}`;
+const SEED_REQUEST_RE = re(`${SEED_VERB}${NEAR}${SEED_TERM}`);
+// "Validate your wallet at <link>": counts only when the message has a link.
+const WALLET_FIX_RE = re(
+  `${NOT_GOVERNED}(?<!\\b${anyOf(SEED_NOT_AFTER)}\\s)${words(WALLET_FIX_VERBS)}\\s+(?:your\\s+|the\\s+)?(?:[a-z]{1,15}\\s+)?${anyOf(WALLET_WORDS)}\\b`,
+);
+
+// investment-guarantee
+const INVEST_PROMISE_RE = re(
+  [
+    words(INVESTMENT_PROMISE_PHRASES), // "guaranteed returns", "risk-free"
+    `${words(GUARANTEE_WORDS)}\\s+(?:[a-z]{1,15}\\s+)?${anyOf(INVESTMENT_RESULT_WORDS)}\\b`, // "guaranteed futures trades"
+    `${words(MULTIPLY_VERBS)}\\s+(?:your\\s+|just\\s+|only\\s+)?${CUR_AMOUNT}\\s+(?:into|to)\\s+${CUR_AMOUNT}`, // "turn $200 into $3,500"
+    `\\b\\d{1,3}(?:\\.\\d{1,2})?\\s?%\\s+${anyOf(RETURN_PERIODS)}\\b`, // "5% daily"
+  ].join("|"),
+);
+const INVEST_CONTEXT_RE = wordsRegex(INVESTMENT_CONTEXT_PHRASES);
+
+// task-job-scam
+const TASK_PAY_RE = re(
+  `${words(TASK_PAY_VERBS)}\\s+(?:up\\s+to\\s+|between\\s+|from\\s+)?${CUR_RANGE}\\s*` +
+    `(?:${anyOf(TASK_PAY_PERIODS)}\\b|\\/\\s?(?:day|hour|hr|task)\\b)`,
+);
+const TASK_EASY_RE = re(
+  `${words(TASK_EASY_PHRASES)}|\\b\\d{1,3}\\s?(?:-|–|—|to)\\s?\\d{1,3}\\s*${anyOf(TASK_TIME_UNITS)}\\b`, // "30–45 mins"
+);
+const TASK_WORK_RE = re(
+  `${words(TASK_WORKER_PHRASES)}|${words(TASK_ACTIONS)}\\s+(?:[a-z]{1,15}\\s+)?${anyOf(TASK_OBJECTS)}\\b`,
+);
+const TASK_REPLY_RE = re(
+  `${words(TASK_REPLY_VERBS)}\\s+["'“‘]?${anyOf(TASK_REPLY_WORDS)}\\b|${words(TASK_CHAT_PHRASES)}`,
+);
+
+// official-fine-threat
+const FINE_TERM_RE = wordsRegex(FINE_TERMS);
+const FINE_PAY_RE = re(`${NOT_GOVERNED}${words(FINE_PAY_VERBS)}`);
+const FINE_LEGAL_RE = wordsRegex(FINE_LEGAL_THREATS);
+const FINE_DEADLINE_WORDS_RE = wordsRegex(FINE_DEADLINE_WORDS);
+
+// recruiter-bait
+const RECRUITER_RE = re(
+  `${words(RECRUITER_INTROS)}\\s+(?!(?:a|an|the|your|our|my|just|not|here)\\b)[a-z]{2,20}(?:\\s+[a-z]{2,20})?\\s+` +
+    `${anyOf(RECRUITER_INTRO_LINKS)}\\b` +
+    `|${words(RECRUITER_TITLES)}`,
+);
+const JOB_RE = wordsRegex(JOB_WORDS);
+const JOB_DOC_RE = wordsRegex(JOB_DOC_WORDS);
+
+// ---------------------------------------------------------------------------
 // Matching on the normalized text
 // ---------------------------------------------------------------------------
 /**
@@ -461,6 +603,86 @@ function detectMistakenPayment(norm) {
   return signalFrom("mistaken-payment", W_MISTAKEN_PAYMENT, matches);
 }
 
+/** Flag + cursed phrases for a family: evidence is the first `lead` match, phrases are all cues. */
+function familySignal(id, weight, lead, cues) {
+  if (lead.length === 0) return { flag: null, phrases: [] };
+  const reason = CURSED_PHRASE_REASONS[id];
+  const all = [...lead, ...cues].sort((a, b) => a.index - b.index);
+  return { flag: makeRedFlag(id, weight, lead[0].text), phrases: all.map((m) => ({ text: m.text, reason })) };
+}
+
+const NO_SIGNAL = { flag: null, phrases: [] };
+
+function detectDeliveryScam(norm, links) {
+  if (links.length === 0) return NO_SIGNAL;
+  const failure = findAll(norm, DELIVERY_FAILURE_RE);
+  if (failure.length === 0 || findAll(norm, DELIVERY_CONTEXT_RE).length === 0) return NO_SIGNAL;
+  const weight = links.some((l) => l.shortener) ? W_DELIVERY_SCAM_SHORTENER : W_DELIVERY_SCAM;
+  return familySignal("delivery-scam", weight, failure, []);
+}
+
+function detectSeedPhrase(norm, links) {
+  const request = findAll(norm, SEED_REQUEST_RE);
+  const walletFix = links.length > 0 ? findAll(norm, WALLET_FIX_RE) : [];
+  const lead = [...request, ...walletFix].sort((a, b) => a.index - b.index);
+  return familySignal("seed-phrase-request", W_SEED_PHRASE_REQUEST, lead, []);
+}
+
+function detectInvestment(norm) {
+  const promise = findAll(norm, INVEST_PROMISE_RE);
+  if (promise.length === 0) return NO_SIGNAL;
+  const context = outside(findAll(norm, INVEST_CONTEXT_RE), promise);
+  if (context.length === 0) return NO_SIGNAL;
+  return familySignal("investment-guarantee", W_INVESTMENT_GUARANTEE, promise, context);
+}
+
+function detectTaskJob(norm) {
+  const work = findAll(norm, TASK_WORK_RE);
+  const pay = findAll(norm, TASK_PAY_RE);
+  const easy = findAll(norm, TASK_EASY_RE);
+  const reply = findAll(norm, TASK_REPLY_RE);
+  const others = (pay.length > 0) + (easy.length > 0) + (reply.length > 0);
+  // Paid simple tasks plus one more cue, or pay + easy hours + "reply YES" together.
+  const fires = work.length > 0 ? others >= 1 : others === 3;
+  if (!fires) return NO_SIGNAL;
+  const lead = [...work, ...pay].sort((a, b) => a.index - b.index);
+  return familySignal("task-job-scam", W_TASK_JOB_SCAM, lead, [...easy, ...reply]);
+}
+
+function detectOfficialFine(norm, links) {
+  if (links.length === 0) return NO_SIGNAL;
+  const term = findAll(norm, FINE_TERM_RE);
+  const pay = findAll(norm, FINE_PAY_RE);
+  if (term.length === 0 || pay.length === 0) return NO_SIGNAL;
+  const pressure = matchesInOrder(norm, [
+    URGENCY_DEADLINE_RE,
+    URGENCY_DEADLINE_EXTRA_RE,
+    FINE_DEADLINE_WORDS_RE,
+    FINE_LEGAL_RE,
+    URGENCY_AVOID_RE,
+  ]);
+  if (pressure.length === 0) return NO_SIGNAL;
+  return familySignal("official-fine-threat", W_OFFICIAL_FINE_THREAT, term, pressure);
+}
+
+function linkMentionsDoc(link) {
+  return link.text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .some((part) => JOB_DOC_LINK_PARTS.includes(part));
+}
+
+function detectRecruiterBait(norm, links) {
+  const unfamiliar = links.filter((l) => !RECRUITER_TRUSTED_DOMAINS.includes(registrableDomain(l.host)));
+  if (unfamiliar.length === 0) return NO_SIGNAL;
+  const recruiter = findAll(norm, RECRUITER_RE);
+  const job = findAll(norm, JOB_RE);
+  if (recruiter.length === 0 || job.length === 0) return NO_SIGNAL;
+  const doc = findAll(norm, JOB_DOC_RE);
+  if (doc.length === 0 && !unfamiliar.some(linkMentionsDoc)) return NO_SIGNAL;
+  return familySignal("recruiter-bait", W_RECRUITER_BAIT, recruiter, [...job, ...doc]);
+}
+
 function dedupeAndCap(phrases) {
   const seen = new Set();
   const out = [];
@@ -487,6 +709,7 @@ export function detectContent(input) {
     URGENCY_LOCKED_RE,
     URGENCY_DEVICE_RE,
     URGENCY_DEADLINE_RE,
+    URGENCY_DEADLINE_EXTRA_RE,
     URGENCY_SCARCITY_RE,
     URGENCY_IMMEDIACY_RE,
   ]);
@@ -512,6 +735,13 @@ export function detectContent(input) {
   const codeSharing = detectCodeSharing(norm);
   const mistakenPayment = detectMistakenPayment(norm);
   const remoteAccess = phraseSignal(norm, "remote-access-request", W_REMOTE_ACCESS_REQUEST, [REMOTE_ACCESS_RE]);
+  const links = findLinks(input);
+  const delivery = detectDeliveryScam(norm, links);
+  const seedPhrase = detectSeedPhrase(norm, links);
+  const investment = detectInvestment(norm);
+  const taskJob = detectTaskJob(norm);
+  const officialFine = detectOfficialFine(norm, links);
+  const recruiter = detectRecruiterBait(norm, links);
 
   // New signals come after the original ones so existing flag and phrase order is unchanged.
   const flags = [
@@ -526,6 +756,12 @@ export function detectContent(input) {
     codeSharing.flag,
     mistakenPayment.flag,
     remoteAccess.flag,
+    delivery.flag,
+    seedPhrase.flag,
+    investment.flag,
+    taskJob.flag,
+    officialFine.flag,
+    recruiter.flag,
   ].filter(Boolean);
   const cursedPhrases = dedupeAndCap([
     ...urgencyEn.phrases,
@@ -538,6 +774,12 @@ export function detectContent(input) {
     ...codeSharing.phrases,
     ...mistakenPayment.phrases,
     ...remoteAccess.phrases,
+    ...delivery.phrases,
+    ...seedPhrase.phrases,
+    ...investment.phrases,
+    ...taskJob.phrases,
+    ...officialFine.phrases,
+    ...recruiter.phrases,
   ]);
   return {
     flags,

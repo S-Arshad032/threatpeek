@@ -25,6 +25,13 @@ export const W_CODE_SHARING_REQUEST = 30;
 export const W_MISTAKEN_PAYMENT = 25;
 export const W_REMOTE_ACCESS_REQUEST = 25;
 export const W_DEFANGED_LINK = 10;
+export const W_DELIVERY_SCAM = 25;
+export const W_DELIVERY_SCAM_SHORTENER = 30; // the same signal when the link is a URL shortener
+export const W_SEED_PHRASE_REQUEST = 35;
+export const W_INVESTMENT_GUARANTEE = 25;
+export const W_TASK_JOB_SCAM = 25;
+export const W_OFFICIAL_FINE_THREAT = 25;
+export const W_RECRUITER_BAIT = 20;
 
 // ---------------------------------------------------------------------------
 // Category caps
@@ -156,6 +163,12 @@ export const SIGNAL_CATEGORY = Object.freeze({
   "mistaken-payment": CATEGORY_CONTENT,
   "remote-access-request": CATEGORY_CONTENT,
   "defanged-link": CATEGORY_LINK,
+  "delivery-scam": CATEGORY_CONTENT,
+  "seed-phrase-request": CATEGORY_CONTENT,
+  "investment-guarantee": CATEGORY_CONTENT,
+  "task-job-scam": CATEGORY_CONTENT,
+  "official-fine-threat": CATEGORY_CONTENT,
+  "recruiter-bait": CATEGORY_CONTENT,
 });
 
 export const CATEGORY_CAPS = Object.freeze({
@@ -226,6 +239,10 @@ export const URGENCY_EXTRA_PHRASES = Object.freeze([
   "or it will be returned",
   "or it will be deleted",
   "or it will be closed",
+  "limited spots",
+  "limited slots",
+  "spots left",
+  "slots left",
 ]);
 // "to avoid arrest", "to avoid legal action", "to avoid permanent closure" ...
 export const URGENCY_AVOID_THREATS = Object.freeze([
@@ -249,6 +266,16 @@ export const DEVICE_WORDS = Object.freeze(["computer", "device", "pc", "laptop",
 export const COMPROMISED_WORDS = Object.freeze(["infected", "hacked", "compromised"]);
 // "within 24 hours", "within 30 minutes".
 export const DEADLINE_UNITS = Object.freeze(["hours", "hour", "hrs", "minutes", "mins"]);
+// Time limits added for the scam families: "within 2 days", "within 12 hr", "in 24 hrs".
+// "in N ..." only counts for hours ("Your code expires in 10 minutes" is ordinary), and neither
+// form counts after words that describe a service promise ("arrives in 24 hours",
+// "processed within 3 days").
+export const DEADLINE_EXTRA_UNITS = Object.freeze(["hr", "days", "day"]);
+export const IN_DEADLINE_UNITS = Object.freeze(["hours", "hour", "hrs", "hr"]);
+export const DEADLINE_NOT_AFTER = Object.freeze([
+  "expire", "expires", "expiring", "valid", "arrive", "arrives", "arriving", "delivered", "processed",
+  "refunded", "credited", "shipped", "ready", "back to you", "reply", "respond", "dispatched",
+]);
 // "only 20 places left".
 export const SCARCITY_UNITS = Object.freeze(["spots", "places", "slots", "seats"]);
 // "call ... immediately", "reply ... right away".
@@ -692,6 +719,162 @@ export const TOOL_WORDS = Object.freeze(["tool", "app", "application", "software
 export const ACCESS_TARGETS = Object.freeze(["computer", "pc", "device", "laptop", "phone", "screen"]);
 
 // ---------------------------------------------------------------------------
+// Scam families (content detector). Each signal needs several cues in the same message; a single
+// word never fires it. Phrases are matched on the normalized text, whole words only.
+// ---------------------------------------------------------------------------
+// delivery-scam: a parcel context + a failure or "update your delivery details" + a link.
+export const DELIVERY_CONTEXT_WORDS = Object.freeze([
+  "parcel", "parcels", "package", "packages", "courier", "shipment", "shipments", "delivery",
+  "deliveries", "consignment", "shipping", "tracking", "redelivery",
+]);
+export const DELIVERY_ITEMS = Object.freeze(["parcel", "package", "shipment", "delivery", "consignment", "item", "order"]);
+export const DELIVERY_FAILED_STATES = Object.freeze([
+  "failed", "unsuccessful", "on hold", "held", "suspended", "undeliverable",
+]);
+export const DELIVERY_NOT_DELIVERED = Object.freeze([
+  "could not be delivered", "couldn't be delivered", "cannot be delivered", "can't be delivered",
+  "was not delivered", "wasn't delivered", "has not been delivered", "unable to deliver",
+  "could not deliver", "couldn't deliver", "failed to deliver", "delivery attempt failed",
+  "returned to sender", "return to sender",
+]);
+export const DELIVERY_ADDRESS_PROBLEMS = Object.freeze([
+  "incomplete", "incorrect", "invalid", "wrong", "missing", "unconfirmed", "insufficient", "unclear",
+]);
+export const DELIVERY_UPDATE_VERBS = Object.freeze(["update", "confirm", "verify", "correct", "reschedule", "re-schedule", "complete"]);
+export const DELIVERY_DETAILS = Object.freeze([
+  "shipping details", "shipping information", "shipping info", "shipping address",
+  "delivery details", "delivery information", "delivery info", "delivery address", "delivery",
+  "redelivery", "address details", "address", "shipping",
+]);
+
+// seed-phrase-request: a request verb + a wallet secret ("Re-sync your 12-word recovery phrase").
+export const SEED_REQUEST_VERBS = Object.freeze([
+  "enter", "re-enter", "sync", "re-sync", "resync", "validate", "verify", "confirm", "submit",
+  "provide", "share", "send", "type", "input", "import", "restore", "paste", "update", "upload",
+  "give", "reply with", "connect",
+]);
+// "you can restore your wallet with your seed phrase" explains, it does not ask.
+export const SEED_NOT_AFTER = Object.freeze(["can", "could", "cannot", "can't", "will", "won't", "able to"]);
+export const SEED_TERMS = Object.freeze([
+  "recovery phrase", "seed phrase", "secret phrase", "secret recovery phrase", "mnemonic phrase",
+  "mnemonic", "backup phrase", "wallet phrase", "passphrase", "private key", "private keys",
+  "seed words", "recovery words", "secret words", "recovery seed", "wallet seed",
+]);
+export const SEED_WORD_COUNTS = Object.freeze(["12", "18", "24", "twelve", "eighteen", "twenty-four"]);
+// "Validate your wallet at <link>": wallet "fixing" always ends at a page that asks for the phrase.
+export const WALLET_FIX_VERBS = Object.freeze([
+  "re-sync", "resync", "sync", "validate", "rectify", "restore", "reactivate", "unlock", "recover",
+  "verify", "connect", "reconnect", "migrate",
+]);
+export const WALLET_WORDS = Object.freeze(["wallet", "wallets", "metamask", "trustwallet", "trust wallet"]);
+
+// investment-guarantee: a promise of big or certain returns + a trading/signals context.
+export const INVESTMENT_PROMISE_PHRASES = Object.freeze([
+  "guaranteed returns", "guaranteed return", "guaranteed profit", "guaranteed profits",
+  "guaranteed income", "guaranteed trades", "guaranteed trade", "guaranteed gains",
+  "guaranteed payout", "guaranteed payouts", "guaranteed wins", "guaranteed signals",
+  "100% guaranteed", "100% profit", "risk-free", "risk free", "zero risk",
+  "double your money", "double your investment", "double your crypto", "double your bitcoin",
+]);
+export const GUARANTEE_WORDS = Object.freeze(["guaranteed", "guarantee", "assured"]);
+export const INVESTMENT_RESULT_WORDS = Object.freeze([
+  "returns", "return", "profit", "profits", "trades", "trade", "gains", "payout", "payouts", "wins",
+  "income", "earnings", "signals",
+]);
+export const MULTIPLY_VERBS = Object.freeze(["turn", "grow", "flip", "convert", "multiply"]);
+export const RETURN_PERIODS = Object.freeze(["daily", "per day", "a day", "weekly", "per week", "a week", "every day"]);
+export const INVESTMENT_CONTEXT_PHRASES = Object.freeze([
+  "signals group", "signal group", "trading signals", "crypto signals", "vip group", "vip channel",
+  "vip signals", "vip crypto", "crypto", "cryptocurrency", "bitcoin", "btc", "usdt", "forex",
+  "futures", "binary options", "trading", "invest", "investment", "investing",
+  "mining pool", "dm admin", "message admin", "contact admin", "inbox admin", "account manager",
+]);
+// Money with a currency marker on either side: "$200", "3,500 BDT", "5000 taka", "38k USDT".
+// (English-only: the taka sign is in the Bengali block, so it is written as BDT/tk/taka.)
+export const MONEY_SYMBOLS = Object.freeze(["$", "£", "€", "₹"]);
+export const MONEY_CODES = Object.freeze([
+  "usd", "usdt", "bdt", "tk", "taka", "inr", "rs", "dollars", "euros", "pounds", "btc", "eth",
+]);
+export const AMOUNT_DIGITS_MAX = 12; // digits, commas and dots after the first digit
+
+// task-job-scam: paid "like videos" / "rate products" tasks, trial tasks, "reply YES".
+export const TASK_PAY_VERBS = Object.freeze(["earn", "earning", "make", "get", "receive", "paid", "income of", "salary of"]);
+export const TASK_PAY_PERIODS = Object.freeze([
+  "per day", "a day", "daily", "each day", "every day", "per hour", "an hour", "hourly",
+  "per task", "each task", "a task", "per order", "per video", "per like", "per review",
+  "per week", "a week", "weekly",
+]);
+export const TASK_EASY_PHRASES = Object.freeze([
+  "work from home", "working from home", "from home", "from your phone", "from your mobile",
+  "part-time", "part time", "no experience", "flexible hours", "spare time", "free time",
+  "a few minutes", "few minutes a day",
+]);
+export const TASK_TIME_UNITS = Object.freeze(["mins", "min", "minutes", "hours", "hour", "hrs", "hr"]);
+// "like", "follow" and "watch" alone are too common ("an app like this", "watch this video").
+export const TASK_ACTIONS = Object.freeze([
+  "likes", "liking", "subscribe to", "subscribing to", "rate", "rating", "review", "reviewing",
+  "boost", "boosting",
+]);
+export const TASK_OBJECTS = Object.freeze([
+  "videos", "video", "posts", "post", "products", "product", "hotels", "hotel", "apps", "app",
+  "channels", "channel", "pages", "page", "reels", "songs", "movies", "restaurants",
+]);
+export const TASK_WORKER_PHRASES = Object.freeze([
+  "video likers", "video liker", "youtube likers", "tiktok likers", "likers", "product reviewers",
+  "app reviewers", "online reviewers", "trial task", "trial tasks", "simple tasks", "simple task",
+  "online tasks", "daily tasks", "easy tasks", "first task", "task-based", "commission per task",
+  "prepaid task", "prepaid tasks",
+]);
+// "Reply YES", "text 'OK'", "respond with START" (quotes allowed), or a move to a chat app.
+export const TASK_REPLY_VERBS = Object.freeze(["reply", "text", "send", "respond with", "reply with", "type"]);
+export const TASK_REPLY_WORDS = Object.freeze(["yes", "y", "ok", "interested", "start", "job"]);
+export const TASK_CHAT_PHRASES = Object.freeze([
+  "whatsapp us", "message us on whatsapp", "contact us on whatsapp", "contact us on telegram",
+  "add us on telegram", "add me on whatsapp", "add me on telegram", "join our telegram", "dm us", "dm me",
+]);
+
+// official-fine-threat: authority/fine + pay + (deadline or legal threat) + a link.
+export const FINE_TERMS = Object.freeze([
+  "fine", "fines", "violation", "violations", "penalty", "penalties", "traffic", "tax", "taxes",
+  "customs", "police", "brta", "btrc", "court", "toll", "tolls", "challan", "e-challan",
+  "citation", "summons", "parking ticket", "traffic ticket", "speeding", "nbr", "income tax",
+  "dmv", "vehicle registration",
+]);
+export const FINE_PAY_VERBS = Object.freeze(["pay", "settle", "clear", "payment"]);
+export const FINE_LEGAL_THREATS = Object.freeze([
+  "legal action", "legal proceedings", "arrest", "warrant", "prosecution", "court case",
+  "license suspension", "licence suspension", "license will be suspended", "licence will be suspended",
+  "vehicle will be seized", "seizure", "additional penalties", "additional charges", "late fees",
+  "blacklisted", "case will be filed",
+]);
+export const FINE_DEADLINE_WORDS = Object.freeze(["today", "immediately", "by tomorrow", "by midnight", "tonight", "asap"]);
+
+// recruiter-bait: unsolicited recruiter + a job + a doc/brief/form on an unfamiliar link.
+export const RECRUITER_INTROS = Object.freeze(["i'm", "i am", "this is", "my name is", "it's"]);
+export const RECRUITER_INTRO_LINKS = Object.freeze(["from", "at", "with", "of", "representing"]);
+export const RECRUITER_TITLES = Object.freeze([
+  "recruiter", "recruiting", "talent acquisition", "talent partner", "talent team", "hiring manager",
+  "hiring team", "hr team", "hr manager", "headhunter", "staffing", "recruitment",
+]);
+export const JOB_WORDS = Object.freeze([
+  "opening", "openings", "role", "roles", "position", "positions", "vacancy", "vacancies", "job",
+  "opportunity", "opportunities", "hiring",
+]);
+export const JOB_DOC_WORDS = Object.freeze([
+  "brief", "job brief", "job description", "jd", "doc", "docs", "document", "portfolio", "form",
+  "application form", "assessment", "test task", "offer letter", "role details", "questionnaire",
+]);
+// Path or hostname parts that carry the same meaning: "docs-share-view.com/role-402".
+export const JOB_DOC_LINK_PARTS = Object.freeze([
+  "doc", "docs", "brief", "form", "forms", "role", "job", "jobs", "career", "careers", "portfolio", "apply", "hiring", "cv",
+]);
+// Job sites people expect a recruiter to use; a link there is not "unfamiliar".
+export const RECRUITER_TRUSTED_DOMAINS = Object.freeze([
+  "linkedin.com", "indeed.com", "glassdoor.com", "bdjobs.com", "wellfound.com", "lever.co",
+  "greenhouse.io", "workable.com", "myworkdayjobs.com",
+]);
+
+// ---------------------------------------------------------------------------
 // Plain-English explanations (design: "Plain-English Explanations" table).
 // "{e}" is replaced by the flag's evidence.
 // ---------------------------------------------------------------------------
@@ -738,6 +921,18 @@ export const EXPLANATION_TEMPLATES = Object.freeze({
     'The message says money was sent to you by mistake and asks you to send it back ("{e}"). This is a common trick: the first payment is fake or gets reversed, and the money you send is lost.',
   "remote-access-request":
     'The message asks you to install a remote-control program or give someone access to your device ("{e}"). Whoever controls your device can see your screen, your passwords and your bank.',
+  "delivery-scam":
+    'The message says a parcel could not be delivered or asks you to update delivery details through a link ("{e}"). This is one of the most common text scams: the link leads to a fake page that takes your card details or a "redelivery fee".',
+  "seed-phrase-request":
+    'The message asks for your wallet recovery phrase or private key ("{e}"). Anyone who has those words owns your crypto. No wallet, exchange or support team ever needs them.',
+  "investment-guarantee":
+    'The message promises guaranteed or multiplied returns from trading or a "signals" group ("{e}"). Real investments never guarantee profit; these groups take your deposit and disappear.',
+  "task-job-scam":
+    'The message offers easy pay for simple online tasks such as liking videos or rating products ("{e}"). These "jobs" pay a little at first, then ask you to deposit money to unlock bigger tasks, and the money is gone.',
+  "official-fine-threat":
+    'The message claims you owe a fine, tax or penalty and must pay through a link quickly or face legal action ("{e}"). Government offices do not collect fines through links in text messages. Check on the official website or app yourself.',
+  "recruiter-bait":
+    'A stranger offers you a job and sends a "brief" or form on an unfamiliar link ("{e}"). Fake recruiters use these links to steal logins or install harmful files. Check the company and the recruiter yourself first.',
   "defanged-link":
     'The link "{e}" is written in a disguised way (for example "[.]" or "dot" instead of a dot). Scammers do this to slip links past spam filters. Treat it like a real link and do not open it.',
 });
@@ -756,4 +951,10 @@ export const CURSED_PHRASE_REASONS = Object.freeze({
   "code-sharing-request": "This asks you to pass on a code sent to you. Never give these codes to anyone.",
   "mistaken-payment": "This claims money was sent to you by mistake and asks for it back. The first payment is usually fake.",
   "remote-access-request": "This asks for control of your device. Never let a stranger connect to it.",
+  "delivery-scam": "This is the classic fake delivery problem. Check the parcel in the courier's own app, not through a link.",
+  "seed-phrase-request": "This asks for your wallet recovery words. Whoever has them owns your crypto.",
+  "investment-guarantee": "This promises certain or multiplied profit. Real investments never guarantee returns.",
+  "task-job-scam": "This offers easy money for simple online tasks. These jobs end with you paying them.",
+  "official-fine-threat": "This demands a fine or tax through a link, with a threat. Officials do not collect fines this way.",
+  "recruiter-bait": "This is an unsolicited job offer with a link to a document. Check the recruiter before opening it.",
 });
