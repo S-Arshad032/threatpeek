@@ -29,12 +29,12 @@ const result = score("Enter your OTP at http://203.0.113.5/verify");
 
 Errors: `TypeError` when the input is not a string. `RangeError` when the input is longer than 4000 characters, or when `l3Score` is not an integer 0–100.
 
-The package also exports `blend(l1Score, l2Hit, l3Score, flags, context?)` and `verdictFor(riskScore)`. `context.paymentInstruction` and `context.secretRequest` are facts from the content detector, not signals: the first lets a gift-card or crypto payment reach its floor when the message says where to send it; the second lifts a direct instruction to hand over a password, PIN, passcode, login or security answer ("Send us your password") to at least 45.
+The package also exports `blend(l1Score, l2Hit, l3Score, flags, context?)` and `verdictFor(riskScore)`. `context.paymentInstruction`, `context.secretRequest` and `context.jobFee` are facts from the content detector, not signals (`jobFee` lifts `advance-fee-scheme` to 60 when a job message asks for an upfront fee): the first lets a gift-card or crypto payment reach its floor when the message says where to send it; the second lifts a direct instruction to hand over a password, PIN, passcode, login or security answer ("Send us your password") to at least 45.
 
 ## How it scores
 
-1. **L1 heuristics.** Four detectors run in order: identity, auth headers, links, content. Together they check 27 signals (English text only). The content detector first normalizes the text (NFKC, lowercase, no zero-width characters, collapsed whitespace, leetspeak and spaced-out letters undone) and maps every match back, so evidence always quotes the original text. Defanged links ("evil[.]com", "evil dot com", "hxxps://") are turned back into real links before every link check, and the disguise itself is a signal (`defanged-link`, 10). Six scam-family signals (`delivery-scam`, `seed-phrase-request`, `investment-guarantee`, `task-job-scam`, `official-fine-threat`, `recruiter-bait`) each need several cues in the same message. Each signal's weight counts once, and each category has a cap: identity/auth 40, link 35, content 45.
-2. **Blend.** The L1 score is combined with `l2Hit` and `l3Score`. The result never drops below 0.8 × L1. Hard floors then apply to dangerous combinations, for example a look-alike domain plus a password request scores at least 70, and a prize or inheritance story plus a request for card details or gift-card payment also scores at least 70. The scam families have their own floors: a wallet recovery-phrase request 70, a fine or tax demand with a link and a threat 60, an investment "guarantee" 55 (70 with pressure), and a failed-delivery link, a paid "like videos" task job or a recruiter's document link 50. No floor rests on a single weak cue.
+1. **L1 heuristics.** Four detectors run in order: identity, auth headers, links, content. Together they check 31 signals (English text only). The content detector first normalizes the text (NFKC, lowercase, no zero-width characters, collapsed whitespace, leetspeak and spaced-out letters undone) and maps every match back, so evidence always quotes the original text. Defanged links ("evil[.]com", "evil dot com", "hxxps://") are turned back into real links before every link check, and the disguise itself is a signal (`defanged-link`, 10). `lookalike-lure-domain` (20, or 30 on a risky ending or a defanged link) fires when the registrable part of a link is 2 or more hyphen-joined lure words such as `secure-login-help` (subdomains and the brands' own domains are skipped). Six scam-family signals (`delivery-scam`, `seed-phrase-request`, `investment-guarantee`, `task-job-scam`, `official-fine-threat`, `recruiter-bait`) each need several cues in the same message, and so do the round 2 families `utility-disconnection-threat`, `payment-failed-lure` and `account-security-lure`. `payment-failed-lure` needs a suspicious link (lure address, risky ending, shortener or raw IP) or an hours-level deadline or deletion threat; `account-security-lure` needs a suspicious link. Each signal's weight counts once, and each category has a cap: identity/auth 40, link 35, content 45.
+2. **Blend.** The L1 score is combined with `l2Hit` and `l3Score`. The result never drops below 0.8 × L1. Hard floors then apply to dangerous combinations, for example a look-alike domain plus a password request scores at least 70, and a prize or inheritance story plus a request for card details or gift-card payment also scores at least 70. The scam families have their own floors: a wallet recovery-phrase request 70, a fine or tax demand with a link and a threat 60, an investment "guarantee" 55 (70 with pressure), a job or hiring message with an upfront onboarding, registration or training fee 60 (`context.jobFee`), and a failed-delivery link, a paid task job (including remote data-entry work with daily pay, "no experience" and a chat-app contact), a recruiter's document link, a utility disconnection threat, a "payment failed" lure or a sign-in alert on a lure address 50. No floor rests on a single weak cue.
 3. **Verdict.** The blended score maps to `verdictFor`.
 
 All weights, caps, floors, word lists and explanation texts live in [`src/config.js`](src/config.js). The fictional default brands live in [`src/brands.js`](src/brands.js).
@@ -59,25 +59,28 @@ The suite has unit tests per module, 13 golden tests, fast-check property tests 
 npm run benchmark                     # dev set (70 messages, used to tune the rules)
 npm run benchmark -- --set=heldout    # held-out set (40 different messages, never tuned on)
 npm run benchmark -- --set=heldout2   # second held-out set (30 messages, credential/OTP focus, never tuned on)
-npm run benchmark -- --set=heldout3   # reserved third held-out set (empty for now, see below)
+npm run benchmark -- --set=heldout3   # third set (30 messages, seen, used for rule tuning in round 2)
+npm run benchmark -- --set=heldout4   # reserved fourth held-out set (empty for now, see below)
 ```
 
-**heldout3** ([`benchmark/heldout3.json`](benchmark/heldout3.json), 30 messages: 15 scam, 15 benign) was written by a third party (Gemini) and was not seen while the rules were written. Never tune rules on it. Unlike the other sets it uses real Bangladeshi service names (bKash, Nagad, DESCO, RedX...) with defanged throwaway domains, and its file is `{ note, messages }`. Results with `score(text)` only, measured once on 25 November 2026:
+**heldout3** ([`benchmark/heldout3.json`](benchmark/heldout3.json), 30 messages: 15 scam, 15 benign) was written by a third party (Gemini) and was not seen while the round 1 rules were written. **It is now seen, used for rule tuning in round 2**, so it is no longer a held-out measure. Unlike the other sets it uses real Bangladeshi service names (bKash, Nagad, DESCO, RedX...) with defanged throwaway domains, and its file is `{ note, messages }`. Results with `score(text)` only, round 1 (measured once on 25 November 2026, before it was seen) and round 2 (26 November 2026, after tuning on its misses):
 
-| heldout3 | Value |
-|---|---|
-| Scams flagged (score 31 or more) | 60% (9/15) |
-| Scams scored 50 or more | 53% (8/15) |
-| Scams scored high risk (70 or more) | 13% (2/15) |
-| Normal messages wrongly flagged (31 or more) | 0% (0/15) |
+| heldout3 | Round 1 (unseen) | Round 2 (seen) |
+|---|---|---|
+| Scams flagged (score 31 or more) | 60% (9/15) | 93% (14/15) |
+| Scams scored 50 or more | 53% (8/15) | 87% (13/15) |
+| Scams scored high risk (70 or more) | 13% (2/15) | 47% (7/15) |
+| Normal messages wrongly flagged (31 or more) | 0% (0/15) | 0% (0/15) |
 
 Known limitations:
 
 - The original draft contained 3 romanized-Bengali messages. They were replaced by English versions because the engine is English-only, so this set says nothing about mixed-language messages, which real Bangladeshi scams often are.
 - `h3-s06` (scam: "my main number got blocked... I need an urgent 3,000 BDT bKash transfer") and `h3-b13` (normal: "my card got declined... can you send me 600 BDT on bKash right now?") are near-twins. A rule engine cannot reliably tell them apart: the scam scored 15 (only `urgency-en`), the normal one 0. Both stay Pookie.
-- Misses: a task-job offer that asks you to message HR on Telegram (25), a utility disconnection threat (25), the friend-impersonation money request (15), a fake Gmail sign-in alert (10), a recruiter asking for an onboarding fee (0), and a subscription "update your payment method" phish (25).
+- Round 1 misses (all but the friend-impersonation are caught in round 2): a task-job offer that asks you to message HR on Telegram (25), a utility disconnection threat (25), the friend-impersonation money request (15), a fake Gmail sign-in alert (10), a recruiter asking for an onboarding fee (0), and a subscription "update your payment method" phish (25).
 
 Like the other sets, heldout3 is small and synthetic; the numbers are not a guarantee.
+
+**heldout4** ([`benchmark/heldout4.json`](benchmark/heldout4.json)) is reserved and empty (`{ note, messages: [] }`), kept for 30 fresh messages (15 scam, 15 benign) that nobody has seen. `--set=heldout4` prints its note and leaves `RESULTS.md` untouched while it is empty. Do not invent messages for it.
 
 Each run scores every message with `score(text)` only (no AI, no Safe Browsing). It prints counts by label and verdict, detection rate (scam scored 31 or more), strong detection rate (70 or more), false-alarm rate (normal message scored 31 or more), detection per scam category, and every miss and false alarm. It also updates that set's section of [`benchmark/RESULTS.md`](benchmark/RESULTS.md). The sets are small, synthetic and English-only, and all were written by the same author, so the numbers are not a guarantee.
 
