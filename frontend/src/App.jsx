@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { analyze, MAX_CHARS } from './api.js'
 import { clipFailsafeMs, playClip, primeClip, stopClip, typingDelay } from './voice.js'
+import PoltergeistEffect, { BatShape } from './PoltergeistEffect.jsx'
 import './App.css'
 
 const MESSAGE = 'Hi, I am Chithi, the peeker! Please check the text before getting hacked!'
@@ -55,9 +56,7 @@ function Backdrop() {
           viewBox="0 0 60 30"
           style={{ top: b.top, '--d': `${b.d}s`, '--dl': `-${b.dl}s` }}
         >
-          <path className="wing wl" d="M28 16C22 6 12 4 2 8c5 2 6 6 6 10 5-3 11-2 14 2z" />
-          <path className="wing wr" d="M32 16C38 6 48 4 58 8c-5 2-6 6-6 10-5-3-11-2-14 2z" />
-          <ellipse cx="30" cy="17" rx="4" ry="6" />
+          <BatShape />
         </svg>
       ))}
     </div>
@@ -288,6 +287,7 @@ export default function App() {
   const input = useRef(null)
   const stage = useRef(null)
   const flyer = useRef(null)
+  const appRoot = useRef(null)
   // sleep -> (tap) -> intro (greeting) -> fly -> ready
   const [phase, setPhase] = useState('sleep')
   // How the intro clip went: null while starting, then { played, duration, ended }
@@ -552,9 +552,10 @@ export default function App() {
   }
 
   return (
-    <div className="app" data-mood={verdict || 'idle'} data-phase={phase}>
+    <div className="app" ref={appRoot} data-mood={verdict || 'idle'} data-phase={phase}>
       <Backdrop />
       <Spiders list={spiders} />
+      <PoltergeistEffect result={result} rootRef={appRoot} />
       <main className="shell">
         <header className="topbar">
           <span className="brand"><span aria-hidden="true">◈</span> ThreatPeek</span>

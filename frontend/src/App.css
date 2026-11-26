@@ -550,3 +550,64 @@ button.wake:hover .ghost { filter: drop-shadow(0 0 30px #ffb061); }
   .zzz span:nth-child(2) { transform: translate(14px, -22px); }
   .zzz span:nth-child(3) { transform: translate(30px, -48px); }
 }
+/* ================= Poltergeist effect (score 70-100) =================
+   PoltergeistEffect.jsx adds .is-haunted to .app for 1.4 s and renders .haunt for 3 s.
+   Safety: 3 dark pulses in 1.4 s (about 2 per second), never brighter than normal, no white.
+   The filter goes on .app's children, not .app itself: a filter on .app would make it the
+   containing block of the fixed backdrop and spiders, which would then jump while scrolled. */
+.app.is-haunted > .shell,
+.app.is-haunted > .backdrop { animation: haunt-dim 1.4s linear both; }
+
+.haunt {
+  position: fixed;
+  inset: 0;
+  z-index: 45; /* above the page and the spiders, below the intro curtain */
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+.haunt-shade {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 40%, rgba(120, 8, 32, .55), rgba(10, 2, 8, .92) 70%);
+  opacity: 0;
+  animation: haunt-pulse 1.4s linear both;
+}
+.haunt-bat {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--w);
+  fill: #12060f;
+  filter: drop-shadow(0 0 5px rgba(255, 70, 100, .6));
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: haunt-fly var(--d) var(--dl) ease-in-out both;
+}
+.haunt .wing { animation-duration: .14s; }
+
+@keyframes haunt-pulse {
+  0%, 100% { opacity: 0; }
+  12% { opacity: .9; }
+  26% { opacity: .2; }
+  46% { opacity: .75; }
+  64% { opacity: .1; }
+  80% { opacity: .5; }
+}
+@keyframes haunt-dim {
+  0%, 26%, 64%, 100% { filter: brightness(1) contrast(1); }
+  12% { filter: brightness(.45) contrast(1.3); }
+  46% { filter: brightness(.6) contrast(1.2); }
+  80% { filter: brightness(.75) contrast(1.1); }
+}
+@keyframes haunt-fly {
+  0% { transform: translate(var(--x0), var(--y0)) rotate(-8deg); opacity: 0; }
+  8%, 92% { opacity: 1; }
+  50% { transform: translate(var(--x1), var(--y1)) rotate(6deg); }
+  100% { transform: translate(var(--x2), var(--y2)) rotate(-4deg); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .haunt { display: none; }
+  .app.is-haunted > * { animation: none !important; }
+}
