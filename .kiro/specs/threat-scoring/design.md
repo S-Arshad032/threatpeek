@@ -77,8 +77,9 @@ backend/engine/
     dev.json             (70 labelled messages, used for tuning)
     heldout.json         (40 different messages, never tuned on)
     heldout2.json        (30 different messages, credential/OTP focus, never tuned on)
-    heldout3.json        ({ note, messages: [] }, reserved for 30 messages the rule author has not seen)
-    lib.js, run.js       (`npm run benchmark [-- --set=dev|heldout|heldout2|heldout3]`)
+    heldout3.json        ({ note, messages }, 30 third-party messages; seen, used for rule tuning in round 2)
+    heldout4.json        ({ note, messages: [] }, reserved for 30 messages nobody has seen)
+    lib.js, run.js       (`npm run benchmark [-- --set=dev|heldout|heldout2|heldout3|heldout4]`)
     RESULTS.md           (generated)
 ```
 
@@ -176,6 +177,10 @@ export const FLOOR_INVESTMENT_PRESSURE = 70;  // 4.19, with urgency-en or unusua
 export const FLOOR_TASK_JOB = 50;             // 4.20
 export const FLOOR_OFFICIAL_FINE = 60;        // 4.21
 export const FLOOR_RECRUITER_BAIT = 50;       // 4.22
+export const FLOOR_UTILITY_DISCONNECTION = 50; // 4.23
+export const FLOOR_PAYMENT_FAILED = 50;        // 4.24
+export const FLOOR_ACCOUNT_SECURITY = 50;      // 4.25, only with a suspicious link
+export const FLOOR_JOB_FEE = 60;               // 4.26, advance-fee-scheme + context.jobFee
 
 // Content proximity windows (characters)
 export const REQUEST_PROXIMITY_CHARS = 60;
@@ -214,9 +219,11 @@ export const SIGNAL_CATEGORY = {
   "mistaken-payment": "content", "remote-access-request": "content",
   "defanged-link": "link", "delivery-scam": "content", "seed-phrase-request": "content",
   "investment-guarantee": "content", "task-job-scam": "content", "official-fine-threat": "content",
-  "recruiter-bait": "content",
+  "recruiter-bait": "content", "lookalike-lure-domain": "link", "utility-disconnection-threat": "content",
+  "payment-failed-lure": "content", "account-security-lure": "content",
 };
-export const RISKY_TLDS = ["xyz", "top", "click", "tk", "ml", "ga", "cf"]; // exactly Requirement 2.6
+export const RISKY_TLDS = ["xyz", "top", "click", "tk", "ml", "ga", "cf",
+                           "support", "online", "info", "site", "icu"]; // Requirement 2.6 (round 2 endings added)
 export const DANGEROUS_EXTENSIONS = ["exe", "scr", "vbs", "bat", "cmd", "js", "lnk", "iso", "img"];
 export const JS_LIBRARY_ALLOWLIST = ["node", "react", "vue", "next", "nuxt", "express", "angular", "d3", "three"];
 export const SECOND_LEVEL_LABELS = ["com", "co", "org", "net", "gov", "edu", "ac"]; // used with 2-letter country TLDs, e.g. com.bd, co.uk
@@ -282,7 +289,7 @@ function score(input, options):
 
 **Safety floor.** The smallest single flag weight is 10 (`secrecy-pressure`), so any message with a flag has `l1Score >= 10`, and the `0.8 x l1Score` floor gives `riskScore >= 8 > 0` (Requirement 8.1).
 
-**Content cap.** The seventeen Content signals add up to 405 points before the cap (with `delivery-scam` at its shortener weight 30), and `CAP_CONTENT` stays at 45. Two strong content signals already reach the cap; the dangerous combinations are lifted further by the hard floors (4.8, 4.10-4.12, 4.14, 4.15, 4.17-4.22), not by raising the cap. The Link cap stays at 35: `defanged-link` (10) plus `risky-tld` (15) is 25. The engine never produces any wording that says a message is safe; `confidence: "limited"` tells the UI the result is a heuristics-only estimate (Requirement 8.3).
+**Content cap.** The twenty Content signals add up to 480 points before the cap (with `delivery-scam` at its shortener weight 30), and `CAP_CONTENT` stays at 45. Two strong content signals already reach the cap; the dangerous combinations are lifted further by the hard floors (4.8, 4.10-4.12, 4.14, 4.15, 4.17-4.26), not by raising the cap. The Link cap stays at 35: `defanged-link` (10) plus `risky-tld` (15) is 25, and with `lookalike-lure-domain` (30 on a risky or defanged link) the Link total is capped at 35. The engine never produces any wording that says a message is safe; `confidence: "limited"` tells the UI the result is a heuristics-only estimate (Requirement 8.3).
 
 ---
 
@@ -323,6 +330,10 @@ function blend(l1Score, l2Hit, l3Score, flags, context = {}):
   if has("task-job-scam"):                                risk = max(risk, FLOOR_TASK_JOB)        // 4.20
   if has("official-fine-threat"):                         risk = max(risk, FLOOR_OFFICIAL_FINE)   // 4.21
   if has("recruiter-bait"):                               risk = max(risk, FLOOR_RECRUITER_BAIT)  // 4.22
+  if has("utility-disconnection-threat"):                 risk = max(risk, FLOOR_UTILITY_DISCONNECTION) // 4.23
+  if has("payment-failed-lure"):                          risk = max(risk, FLOOR_PAYMENT_FAILED)  // 4.24
+  if has("account-security-lure"):                        risk = max(risk, FLOOR_ACCOUNT_SECURITY) // 4.25
+  if has("advance-fee-scheme") && context?.jobFee === true: risk = max(risk, FLOOR_JOB_FEE)       // 4.26
 
   return Math.round(Math.min(100, Math.max(0, risk)))                                   // 4.13
 ```
@@ -330,6 +341,8 @@ function blend(l1Score, l2Hit, l3Score, flags, context = {}):
 The 0.8 x L1 floor is applied before the hard floors; hard floors can only raise the score. Clamp and round are always last.
 
 Floors 4.17-4.22 rest only on the compound family signals (Requirement 2.26-2.31), each of which needs several cues in one message. The weak signals around them (`defanged-link` 10, `urgency-en` 15) have no floor, so one weak cue alone never lifts a message above 50. The levels follow how direct the harm is: a wallet recovery phrase is total, immediate loss (70); a fine with a legal threat and a payment link is a strong payment lure (60); delivery, task-job and recruiter lures are Skeptical (50), because real couriers and recruiters do send similar messages; investment promises sit at 55 and reach 70 only with pressure or a hard-to-trace payment.
+
+Round 2 floors 4.23-4.25 (utility disconnection, payment-failed lure, sign-in alert on a lure link) are 50 for the same reason as delivery: real utilities, shops and mail providers send similar notices, and only the compound of cues plus an odd link or a pay-now order separates them. A job that asks for an upfront fee (4.26) is 60: legitimate employers do not charge to hire, so the fee itself is the harm. `lookalike-lure-domain` has no floor; it is a Link signal that adds weight and feeds the "suspicious link" condition of 2.34 and 2.35.
 
 `context.paymentInstruction` comes from the content detector (`score()` passes it through). It is not a signal and has no weight: it only says the message names where to send the payment ("send it to me", "pay to this account", "send me the codes"). A gift card or crypto mentioned with no pressure and no instruction ("Buy a gift card for your mom") gets no floor and stays at 20.
 
@@ -434,7 +447,11 @@ All repetitions are bounded; negated classes stop at line ends and `<`.
 
 ### link.js
 
-Signals: `raw-ip-url`, `risky-tld`, `link-text-mismatch`, `defanged-link`. All Link. Returns an empty `cursedPhrases`. Every check except `defanged-link` reads `refang(input)`.
+Signals: `raw-ip-url`, `risky-tld`, `link-text-mismatch`, `defanged-link`, `lookalike-lure-domain`. All Link. Returns an empty `cursedPhrases`. Every check except `defanged-link` reads `refang(input)`. `detectLinks(input, brands)` takes the same brand list as `score()`.
+
+#### lookalike-lure-domain (weight `W_LOOKALIKE_LURE_DOMAIN` = 20, `W_LOOKALIKE_LURE_DOMAIN_STRONG` = 30)
+
+`util/lure.js` `isLureDomain(host, brands)`: split `registrableLabel(host)` on "-" and count parts in `LURE_WORDS`; fire at `LURE_WORDS_MIN` (2) or more, unless `registrableDomain(host)` is a brand domain or in `LOOKALIKE_SAFE_DOMAINS`. The first such link from `findLinks(input)` is the evidence (its host). Weight 30 when `hasRiskyTld(host)` or `findDefang(input)` finds a defanged piece, else 20. The same helper feeds the content detector's "suspicious link" test (lure domain, risky TLD, shortener or raw IP) for 2.34 and 2.35.
 
 #### defanged-link (weight `W_DEFANGED_LINK` = 10)
 
@@ -491,7 +508,7 @@ All inner groups are negated classes with explicit length caps; the HTML pattern
 
 ### content.js
 
-Signals: `urgency-en`, `credential-request`, `suspicious-attachment`, `prize-lottery`, `advance-fee-scheme`, `financial-info-request`, `unusual-payment-method`, `secrecy-pressure`, `code-sharing-request`, `mistaken-payment`, `remote-access-request`, `delivery-scam`, `seed-phrase-request`, `investment-guarantee`, `task-job-scam`, `official-fine-threat`, `recruiter-bait`. All Content, English text only. Every signal except `suspicious-attachment` produces `cursedPhrases`. Flags are emitted in that order. Cursed phrases are collected in the same order (urgency, credential, then the scam signals), de-duplicated by lowercase text and limited to `MAX_CURSED_PHRASES` (20).
+Signals: `urgency-en`, `credential-request`, `suspicious-attachment`, `prize-lottery`, `advance-fee-scheme`, `financial-info-request`, `unusual-payment-method`, `secrecy-pressure`, `code-sharing-request`, `mistaken-payment`, `remote-access-request`, `delivery-scam`, `seed-phrase-request`, `investment-guarantee`, `task-job-scam`, `official-fine-threat`, `recruiter-bait`, `utility-disconnection-threat`, `payment-failed-lure`, `account-security-lure`. All Content, English text only. `detectContent(input, brands)` also returns `jobFee` (Requirement 2.36a). Every signal except `suspicious-attachment` produces `cursedPhrases`. Flags are emitted in that order. Cursed phrases are collected in the same order (urgency, credential, then the scam signals), de-duplicated by lowercase text and limited to `MAX_CURSED_PHRASES` (20).
 
 **Normalization (`util/normalize.js`, Requirement 2.21).** All phrase signals match a normalized copy of the input: NFKC per base character plus its combining marks, lowercase, zero-width and control characters dropped, each whitespace run collapsed to one `" "` (or `"\n"` if it held a line break, so sentence boundaries survive), leetspeak mapped inside tokens of letters/digits/`@`/`$` that contain a letter (`LEET_MAP`: @→a, 0→o, 1→i, $→s, 3→e, 5→s; tokens with a currency symbol next to a digit, number-first tokens such as "10am" or "$1million" and letters+number codes such as "mp3" are left alone), and `SPACED_LETTERS_MIN` (4) or more single letters separated by single spaces joined. Every normalized character keeps the [start, end) span of the original characters it came from, so `toOriginal(start, end)` maps a match back and evidence/cursed phrases are slices of the original input. A second string, `cased`, has the same length and offsets but keeps letter case and leet symbols; the case-sensitive PIN/OTP regex runs on it. The attachment check, like the link and identity detectors, reads the raw input. Every step is one linear pass.
 
@@ -629,6 +646,11 @@ Each family collects cue matches on the normalized text with bounded patterns an
 | `task-job-scam` | 25 | WORK + one of PAY/EASY/REPLY, or PAY + EASY + REPLY |
 | `official-fine-threat` | 25 | `FINE_TERMS` AND a `NOT_GOVERNED` pay verb AND pressure (deadline, "today/immediately...", legal threat, "to avoid ...") AND a link |
 | `recruiter-bait` | 20 | recruiter intro or title AND `JOB_WORDS` AND a document (`JOB_DOC_WORDS` or a doc part in the link) AND a link outside `RECRUITER_TRUSTED_DOMAINS` |
+| `utility-disconnection-threat` | 25 | `DISCONNECT_RE` AND `UTILITY_WORDS` AND `UNPAID_RE` AND (a link OR `PAY_NOW_RE`) |
+| `payment-failed-lure` | 25 | `PAYMENT_FAILED_RE` AND `PAYMENT_UPDATE_RE` AND a link AND (a suspicious link OR `URGENCY_DEADLINE_RE` OR `ACCOUNT_THREAT_RE`) |
+| `account-security-lure` | 25 | a suspicious link AND `LOGIN_ALERT_RE` AND `SECURE_ACTION_RE` |
+| `advance-fee-scheme` (job fee) | 25 | job context (`JOB_RE`, `RECRUITER_RE`, `JOB_CONTEXT_EXTRA`) AND (`JOB_FEE_RE` OR (`JOB_SLOT_RE` AND an amount)); sets `jobFee` |
+| `task-job-scam` (remote path) | 25 | `REMOTE_WORK_RE` AND `REMOTE_PAY_RE` AND `NO_EXPERIENCE_RE` AND (`CHAT_APP_RE` OR the REPLY cue) |
 
 #### urgency-en phrase families
 
@@ -679,7 +701,7 @@ Every `RedFlag.explanation` is non-empty, jargon-free, and says what was found a
 | mistaken-payment | The message says money was sent to you by mistake and asks you to send it back ("{e}"). This is a common trick: the first payment is fake or gets reversed, and the money you send is lost. |
 | remote-access-request | The message asks you to install a remote-control program or give someone access to your device ("{e}"). Whoever controls your device can see your screen, your passwords and your bank. |
 | defanged-link | The link "{e}" is written in a disguised way (for example "[.]" or "dot" instead of a dot). Scammers do this to slip links past spam filters. Treat it like a real link and do not open it. |
-| delivery-scam, seed-phrase-request, investment-guarantee, task-job-scam, official-fine-threat, recruiter-bait | See `EXPLANATION_TEMPLATES` in `config.js`: each says what the message does, quotes the evidence, and says why it is a known scam pattern. |
+| delivery-scam, seed-phrase-request, investment-guarantee, task-job-scam, official-fine-threat, recruiter-bait, lookalike-lure-domain, utility-disconnection-threat, payment-failed-lure, account-security-lure | See `EXPLANATION_TEMPLATES` in `config.js`: each says what the message does, quotes the evidence, and says why it is a known scam pattern. |
 
 Cursed-phrase reasons (`CURSED_PHRASE_REASONS`):
 
@@ -701,6 +723,9 @@ Cursed-phrase reasons (`CURSED_PHRASE_REASONS`):
 | task-job-scam | This offers easy money for simple online tasks. These jobs end with you paying them. |
 | official-fine-threat | This demands a fine or tax through a link, with a threat. Officials do not collect fines this way. |
 | recruiter-bait | This is an unsolicited job offer with a link to a document. Check the recruiter before opening it. |
+| utility-disconnection-threat | This threatens to cut off a utility unless you pay now. Check your bill in the official app. |
+| payment-failed-lure | This claims a payment failed and asks for your card details again. Use the official app instead. |
+| account-security-lure | This is a sign-in alert that sends you to a fake page. Check your account in the official app. |
 
 ---
 
@@ -822,6 +847,13 @@ Each golden test asserts the exact verdict, the riskScore (exact where the arith
 - Three paraphrases per family fire the family signal and score >= 50.
 - Negatives stay below 30: delivered/shipped notices, a due electricity bill, a full-time job ad, an OTP delivery, "Never share your 12-word recovery phrase", plus a near miss per family (warnings, "does not guarantee future returns", part-time cashier pay, a paid parking ticket receipt, a recruiter with no link, "arrives in 24 hours").
 - Refang cases (brackets, "dot", hxxp, [:]), prose left alone, offsets mapped back, risky-tld/raw-ip/typosquatting on defanged links.
+
+### Round 2 tests (`round2.test.js`)
+
+- `lookalike-lure-domain`: weights 20/30, evidence is the host; one lure word, unhyphenated names, subdomains and brand domains do not fire; the round 2 TLDs fire `risky-tld`.
+- Three paraphrases each for `utility-disconnection-threat`, `payment-failed-lure`, `account-security-lure`, the job fee (>= 60, `jobFee`) and the remote task-job path (>= 50), all written for the test file with fictional names.
+- `account-security-lure` needs a suspicious link; utility needs a link or pay-now; the job-fee floor needs `advance-fee-scheme`.
+- Negatives < 30: the six required ones (due electricity bill, subscription payment failed with an ordinary account link, new-device sign-in with no action, full-time job ad, OTP delivery, delivered parcel) plus near misses (planned maintenance, a 7-day grace period on the real domain, a sign-in alert with no link, "no registration fee", a monthly-salary remote role, one lure word, a declined card at a shop).
 
 ### Property tests (`property.test.js`)
 

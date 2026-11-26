@@ -280,6 +280,16 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - [x] 19.5 Tests: `scam-families.test.js` (reference messages at their targets, 3 paraphrases per family, required negatives and near misses < 30, cue rules, urgency time limits), `defang.test.js`, `blend.test.js` 4.17-4.22, config counts (27 signals); the near misses led to a negation guard for investment promises
   - [x] 19.6 Benchmarks re-run: false alarms unchanged on dev, heldout and heldout2. Note: the rules were written from the six reported messages, not from the benchmark sets, but the held-out miss lists were printed during the baseline run, so heldout and heldout2 are no longer fully unseen for this change
   - [x] 19.7 `benchmark/heldout3.json` reserved (`{ note, messages: [] }`) for 30 fresh messages (15 scam / 15 benign) the rule author has not seen; `--set=heldout3` prints the note while empty (Requirement 13.1, 13.2)
+
+- [x] 20. Round 2: lure domains, utility, payment and sign-in lures, job fees
+  - [x] 20.1 Diagnose: heldout3 scored 60% detection, 0% false alarms; misses were a utility disconnection threat, a payment-failed phish, a fake sign-in alert, a remote data-entry job with a Telegram contact, a recruiter's onboarding fee, and a friend-impersonation money request (not fixable by rules, left alone)
+  - [x] 20.2 `lookalike-lure-domain` (Link, 20 / 30 on a risky TLD or defanged link) in `link.js` via `util/lure.js`; risky TLDs extended with support, online, info, site, icu (Requirements 2.6, 2.32)
+  - [x] 20.3 `utility-disconnection-threat`, `payment-failed-lure`, `account-security-lure` in `content.js`, each a compound of cues; account-security needs a suspicious link (Requirements 2.33-2.35, 3.3)
+  - [x] 20.4 Job fee in a job context feeds `advance-fee-scheme` and `context.jobFee`; remote-work path for `task-job-scam` (Requirement 2.36)
+  - [x] 20.5 Floors 4.23-4.26 in `blend.js`
+  - [x] 20.6 Tests: `round2.test.js` (3 paraphrases per new rule, required negatives and near misses < 30), config counts (31 signals, 12 risky TLDs), `defang.test.js` updated for the new link signal
+  - [x] 20.7 Benchmarks before/after on dev, heldout, heldout2 and heldout3: no benign score changed on any set; heldout3 marked "seen, used for rule tuning in round 2" in its note, RESULTS.md and the READMEs
+  - [x] 20.8 `benchmark/heldout4.json` reserved (`{ note, messages: [] }`) for 30 fresh messages nobody has seen; `--set=heldout4` prints the note while empty (Requirement 13.1, 13.2)
   - The six reference messages in `scam-families.test.js` are quoted as reported (they name real services such as MetaMask, BRTA and bit.ly); all other new fixtures use fictional names and reserved or throwaway domains
   - _Requirements: 2.9, 2.25-2.31, 3.3, 4.17-4.22, 13.1, 13.2_
 
