@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { analyze, MAX_CHARS } from './api.js'
 import { clipFailsafeMs, playClip, primeClip, stopClip, typingDelay } from './voice.js'
 import PoltergeistEffect, { BatShape } from './PoltergeistEffect.jsx'
+import { scrollToResult } from './scrollToResult.js'
 import './App.css'
 
 const MESSAGE = 'Hi, I am Chithi, the peeker! Please check the text before getting hacked!'
@@ -288,6 +289,7 @@ export default function App() {
   const stage = useRef(null)
   const flyer = useRef(null)
   const appRoot = useRef(null)
+  const resultCard = useRef(null)
   // sleep -> (tap) -> intro (greeting) -> fly -> ready
   const [phase, setPhase] = useState('sleep')
   // How the intro clip went: null while starting, then { played, duration, ended }
@@ -353,6 +355,14 @@ export default function App() {
 
   // Unmounting stops anything Chithi is still saying.
   useEffect(() => stopClip, [])
+
+  // On the stacked (phone) layout, bring a new result card into view once it has rendered.
+  // result is null on load, while peeking, after Clear and on errors, so only a new result scrolls.
+  useEffect(() => {
+    if (!result) return undefined
+    const frame = requestAnimationFrame(() => scrollToResult(resultCard.current))
+    return () => cancelAnimationFrame(frame)
+  }, [result])
 
   // Chithi sleeps until tapped. playClip() calls play() synchronously, inside the
   // tap/keypress, which browsers (iOS Safari especially) require before audio starts.
@@ -624,6 +634,7 @@ export default function App() {
           </form>
 
           <section
+            ref={resultCard}
             className={`panel result${busy ? ' busy' : ''}`}
             data-mood={verdict || 'idle'}
             aria-live="polite"
