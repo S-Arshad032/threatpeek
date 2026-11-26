@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { STACKED_QUERY, TOP_OFFSET, scrollToResult } from './scrollToResult.js'
+import { ALIGN_TOLERANCE, STACKED_QUERY, TOP_OFFSET, scrollToResult } from './scrollToResult.js'
 
 // A window stand-in: matchMedia answers by width (and the reduced-motion flag), like the browser.
 function fakeWindow({ width = 375, height = 667, scrollY = 0, reducedMotion = false } = {}) {
@@ -39,11 +39,20 @@ describe('scrollToResult()', () => {
     expect(win.scrollTo).not.toHaveBeenCalled()
   })
 
-  it('does nothing when the card is already fully or mostly in view', () => {
-    const win = fakeWindow()
-    expect(scrollToResult(card(40), win)).toBe(false) // fully visible
-    expect(scrollToResult(card(200), win)).toBe(false) // 467 of 520 px visible
+  it('scrolls a card whose top is in the lower half of a 375x758 screen, even if most of it shows', () => {
+    const win = fakeWindow({ height: 758, scrollY: 300 })
+    expect(scrollToResult(card(420, 560), win)).toBe(true)
+    expect(win.scrollTo).toHaveBeenCalledWith({ top: 300 + 420 - TOP_OFFSET, behavior: 'smooth' })
+  })
+
+  it('does nothing when the card top is already within 40 px of the target', () => {
+    expect(ALIGN_TOLERANCE).toBe(40)
+    const win = fakeWindow({ height: 758 })
+    for (const top of [TOP_OFFSET, TOP_OFFSET + 40, TOP_OFFSET - 40, 0, 30]) {
+      expect(scrollToResult(card(top), win)).toBe(false)
+    }
     expect(win.scrollTo).not.toHaveBeenCalled()
+    expect(scrollToResult(card(TOP_OFFSET + 41), win)).toBe(true)
   })
 
   it('jumps instantly with prefers-reduced-motion', () => {
