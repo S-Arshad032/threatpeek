@@ -64,11 +64,16 @@ describe("benchmark held-out sets are well formed", () => {
   });
 });
 
-describe("benchmark heldout3 (reserved)", () => {
-  it("is a known set with a note and a messages array", () => {
+describe("benchmark heldout3 and heldout4", () => {
+  it("heldout3 is a known set whose note says it was used for round 2 tuning", () => {
     expect(SETS).toContain("heldout3");
-    expect(Array.isArray(loadSet("heldout3"))).toBe(true);
-    expect(setNote("heldout3")).toMatch(/NOT seen/);
+    expect(loadSet("heldout3")).toHaveLength(30);
+    expect(setNote("heldout3")).toMatch(/used for rule tuning in round 2/);
+  });
+  it("heldout4 is reserved: a note and an empty messages array", () => {
+    expect(SETS).toContain("heldout4");
+    expect(loadSet("heldout4")).toEqual([]);
+    expect(setNote("heldout4")).toMatch(/nobody .* has seen/);
   });
   it("the older sets are still bare arrays", () => {
     for (const name of ["dev", "heldout", "heldout2"]) expect(setNote(name)).toBeNull();

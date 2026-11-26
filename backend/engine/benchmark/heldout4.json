@@ -1,0 +1,4 @@
+{
+  "note": "Fourth held-out set, reserved: kept empty for 30 fresh messages (15 scam, 15 benign) that nobody working on the rules has seen. Add messages only from an outside source, run --set=heldout4 once, and never tune rules on it. Messages use the same fields as heldout3.json: { id, label, category, text }.",
+  "messages": []
+}
