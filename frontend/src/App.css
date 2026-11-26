@@ -579,12 +579,12 @@ button.wake:hover .ghost { filter: drop-shadow(0 0 30px #ffb061); }
   left: 0;
   width: var(--w);
   fill: #12060f;
-  filter: drop-shadow(0 0 5px rgba(255, 70, 100, .6));
+  filter: drop-shadow(0 0 6px rgba(255, 70, 100, .6));
   opacity: 0;
   will-change: transform, opacity;
   animation: haunt-fly var(--d) var(--dl) ease-in-out both;
 }
-.haunt .wing { animation-duration: .14s; }
+.haunt .wing { animation-duration: var(--flap, .14s); }
 
 @keyframes haunt-pulse {
   0%, 100% { opacity: 0; }
@@ -601,10 +601,10 @@ button.wake:hover .ghost { filter: drop-shadow(0 0 30px #ffb061); }
   80% { filter: brightness(.75) contrast(1.1); }
 }
 @keyframes haunt-fly {
-  0% { transform: translate(var(--x0), var(--y0)) rotate(-8deg); opacity: 0; }
+  0% { transform: translate(calc(var(--x0) - 50%), calc(var(--y0) - 50%)) rotate(-8deg); opacity: 0; }
   8%, 92% { opacity: 1; }
-  50% { transform: translate(var(--x1), var(--y1)) rotate(6deg); }
-  100% { transform: translate(var(--x2), var(--y2)) rotate(-4deg); opacity: 0; }
+  50% { transform: translate(calc(var(--x1) - 50%), calc(var(--y1) - 50%)) rotate(6deg); }
+  100% { transform: translate(calc(var(--x2) - 50%), calc(var(--y2) - 50%)) rotate(-4deg); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {

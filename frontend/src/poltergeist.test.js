@@ -5,6 +5,7 @@ import {
   EFFECT_MS,
   HAUNT_BATS,
   FLICKER_MS,
+  batWidth,
   HAUNT_CLASS,
   POLTERGEIST_MIN_SCORE,
   isPoltergeist,
@@ -115,5 +116,31 @@ describe('PoltergeistOverlay', () => {
 
   it('every bat finishes within the 3 s effect', () => {
     for (const b of HAUNT_BATS) expect((b.d + b.dl) * 1000).toBeLessThanOrEqual(EFFECT_MS)
+  })
+
+  // Screens to check: iPhone portrait, phone landscape, laptop, large desktop.
+  const SCREENS = [[375, 667], [812, 375], [1440, 900], [2560, 1440]]
+  const px = (b, vwPx) => Math.min(b.max, Math.max(b.min, (b.vw * vwPx) / 100))
+
+  it('has 2 hero bats of 20-25vw and scales every bat with vw, never above 35% of the width', () => {
+    expect(HAUNT_BATS.filter((b) => b.vw >= 20 && b.vw <= 25)).toHaveLength(2)
+    for (const b of HAUNT_BATS) {
+      expect(batWidth(b)).toBe(`clamp(${b.min}px, ${b.vw}vw, ${b.max}px)`)
+      for (const [w] of SCREENS) expect(px(b, w) / w).toBeLessThanOrEqual(0.35)
+    }
+  })
+
+  it('starts and ends every bat fully outside the viewport', () => {
+    for (const b of HAUNT_BATS) {
+      for (const [w, h] of SCREENS) {
+        const halfW = (px(b, w) / 2 / w) * 100 // in vw
+        const halfH = (px(b, w) / 4 / h) * 100 // in vh (the bat is half as tall as wide)
+        for (const i of [0, 2]) {
+          const outX = b.x[i] + halfW < 0 || b.x[i] - halfW > 100
+          const outY = b.y[i] + halfH < 0 || b.y[i] - halfH > 100
+          expect(outX || outY).toBe(true)
+        }
+      }
+    }
   })
 })

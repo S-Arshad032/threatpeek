@@ -12,17 +12,27 @@ export const FLICKER_MS = 1400 // the root class is removed after this
 export const EFFECT_MS = 3000 // the overlay (and its bats) is removed after this
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 
-// Seven bats from different edges. x/y are vw/vh: start, a curved middle point, end.
-// w is the width in px, d the duration and dl the delay in seconds (d + dl <= 2.9 s).
+// Seven bats from different edges: two very large "hero" bats that sweep the whole screen,
+// three medium-large ones and two small ones for depth. x/y are the bat's CENTRE in vw/vh:
+// start, a curved middle point, end. Start and end are far enough outside the viewport that
+// even the largest bat is fully off-screen there. Width is clamp(min px, vw, max px) so the
+// bats scale with the viewport (vw is at most 35 and min px fits in 35% of a 375 px screen).
+// flap is the wing-beat in seconds (bigger bats beat slower), d the duration and dl the delay
+// in seconds (d + dl <= 2.9 s).
 export const HAUNT_BATS = [
-  { w: 54, d: 2.2, dl: 0, x: [-12, 40, 112], y: [18, 6, 24] },
-  { w: 36, d: 2.0, dl: 0.25, x: [112, 55, -12], y: [62, 50, 70] },
-  { w: 46, d: 2.4, dl: 0.1, x: [20, 34, 70], y: [110, 50, -15] },
-  { w: 30, d: 1.8, dl: 0.6, x: [-12, 30, 80], y: [-12, 30, 112] },
-  { w: 62, d: 2.5, dl: 0.35, x: [112, 60, 10], y: [-10, 30, 112] },
-  { w: 40, d: 1.9, dl: 0.9, x: [-12, 50, 112], y: [84, 70, 40] },
-  { w: 34, d: 2.1, dl: 0.5, x: [84, 70, 30], y: [112, 60, -15] },
+  { vw: 24, min: 96, max: 380, flap: 0.3, d: 2.6, dl: 0, x: [-22, 45, 122], y: [30, 12, 40] },
+  { vw: 21, min: 84, max: 340, flap: 0.28, d: 2.5, dl: 0.4, x: [124, 55, -24], y: [78, 55, 22] },
+  { vw: 11, min: 60, max: 170, flap: 0.2, d: 2.2, dl: 0.1, x: [20, 34, 72], y: [118, 50, -18] },
+  { vw: 10, min: 56, max: 150, flap: 0.2, d: 2.0, dl: 0.6, x: [-16, 30, 82], y: [-16, 35, 118] },
+  { vw: 12, min: 64, max: 180, flap: 0.22, d: 2.3, dl: 0.3, x: [116, 62, 12], y: [-14, 32, 118] },
+  { vw: 6, min: 36, max: 90, flap: 0.14, d: 1.9, dl: 0.9, x: [-10, 50, 110], y: [88, 72, 42] },
+  { vw: 5, min: 32, max: 76, flap: 0.14, d: 2.0, dl: 0.7, x: [86, 70, 30], y: [112, 60, -12] },
 ]
+
+/** The CSS width of a haunt bat: scales with the viewport between its min and max. */
+export function batWidth(b) {
+  return `clamp(${b.min}px, ${b.vw}vw, ${b.max}px)`
+}
 
 /** True for a result in the poltergeist range (score 70-100). */
 export function isPoltergeist(result) {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { HAUNT_BATS, startPoltergeist } from './poltergeist.js'
+import { HAUNT_BATS, batWidth, startPoltergeist } from './poltergeist.js'
 
 /** The bat silhouette, shared with the backdrop bats in App.jsx. */
 export function BatShape() {
@@ -23,7 +23,8 @@ export function PoltergeistOverlay() {
           className="haunt-bat"
           viewBox="0 0 60 30"
           style={{
-            '--w': `${b.w}px`,
+            '--w': batWidth(b),
+            '--flap': `${b.flap}s`,
             '--d': `${b.d}s`,
             '--dl': `${b.dl}s`,
             '--x0': `${b.x[0]}vw`, '--x1': `${b.x[1]}vw`, '--x2': `${b.x[2]}vw`,
