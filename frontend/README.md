@@ -66,6 +66,10 @@ Never put API keys in the frontend. All keys live in `backend/server/.env`.
 
 The production build (`npm run build`) always uses the real flow: `frontend/.env.production` sets `VITE_USE_MOCK=false`, and Vite reads it in preference to `.env`. `api.js` only calls relative `/api/...` paths, so the deployed app talks to the server on its own domain. See [docs/deploy.md](../docs/deploy.md).
 
+## Poltergeist effect
+
+When a new result scores 70 or more, [`PoltergeistEffect.jsx`](src/PoltergeistEffect.jsx) plays a short effect over the whole screen. It adds the `is-haunted` class to the `.app` root for 1.4 s: the page content and backdrop dim and flicker through a CSS filter. It also shows a fixed, click-through overlay (`.haunt`, `aria-hidden`) with dark red pulses and 7 bats for 3 s, then removes the class and the overlay. The flicker has 3 dark pulses in 1.4 s (about 2 per second) and never goes brighter than normal. With `prefers-reduced-motion` nothing plays. The effect replays for every new poltergeist result and stops on Clear or a new peek. Timing logic and the bat paths are in [`poltergeist.js`](src/poltergeist.js); the CSS is the last block of `App.css`.
+
 ## Who owns what
 
 - **Yours to change freely:** everything in `frontend/src` except `api.js` and `mock.js` (for example `App.jsx`, `main.jsx`, new components and styles).
