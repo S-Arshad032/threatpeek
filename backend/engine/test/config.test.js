@@ -18,11 +18,14 @@ const PHRASE_SIGNALS = [
   "task-job-scam",
   "official-fine-threat",
   "recruiter-bait",
+  "utility-disconnection-threat",
+  "payment-failed-lure",
+  "account-security-lure",
 ];
 
 describe("config", () => {
   it("has an explanation template and category for every signal id", () => {
-    expect(C.ALL_SIGNAL_IDS).toHaveLength(27);
+    expect(C.ALL_SIGNAL_IDS).toHaveLength(31);
     for (const id of C.ALL_SIGNAL_IDS) {
       expect(typeof C.EXPLANATION_TEMPLATES[id]).toBe("string");
       expect(C.EXPLANATION_TEMPLATES[id].length).toBeGreaterThan(0);
@@ -68,6 +71,8 @@ describe("config", () => {
 
   it("uses the agreed urgency phrase lists", () => {
     expect(C.URGENCY_EN_PHRASES).toHaveLength(10);
-    expect(C.RISKY_TLDS).toEqual(["xyz", "top", "click", "tk", "ml", "ga", "cf"]);
+    expect(C.RISKY_TLDS).toEqual([
+      "xyz", "top", "click", "tk", "ml", "ga", "cf", "support", "online", "info", "site", "icu",
+    ]);
   });
 });

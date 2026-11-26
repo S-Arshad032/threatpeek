@@ -50,7 +50,7 @@ describe("normalize sees refanged links and still maps back", () => {
 
 describe("link and identity detectors see defanged links", () => {
   it("risky-tld fires on a defanged risky ending", () => {
-    expect(linkIds("Pay at fine-pay[.]xyz today")).toEqual(["risky-tld", "defanged-link"]);
+    expect(linkIds("Pay at fine-pay[.]xyz today")).toEqual(["risky-tld", "defanged-link", "lookalike-lure-domain"]);
     expect(linkIds("hxxp://198[.]51[.]100[.]7/login")).toContain("raw-ip-url");
   });
   it("typosquatting fires on a defanged look-alike", () => {
