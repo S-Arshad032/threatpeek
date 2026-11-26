@@ -2,7 +2,9 @@
 // advance-fee-scheme, financial-info-request, unusual-payment-method, secrecy-pressure,
 // code-sharing-request, mistaken-payment, remote-access-request, and the scam families
 // delivery-scam, seed-phrase-request, investment-guarantee, task-job-scam, official-fine-threat,
-// recruiter-bait (each needs several cues together; some also need a link in the message).
+// recruiter-bait, and from round 2 utility-disconnection-threat, payment-failed-lure,
+// account-security-lure (each needs several cues together; some also need a link in the message).
+// advance-fee-scheme also covers an upfront fee for a job (context.jobFee, floor 4.26).
 // All Content category. Every signal except suspicious-attachment also produces cursed phrases.
 //
 // Phrase signals match the NORMALIZED text (util/normalize.js: lowercase, NFKC, no zero-width
@@ -177,11 +179,51 @@ import {
   JOB_DOC_WORDS,
   JOB_DOC_LINK_PARTS,
   RECRUITER_TRUSTED_DOMAINS,
+  W_UTILITY_DISCONNECTION_THREAT,
+  W_PAYMENT_FAILED_LURE,
+  W_ACCOUNT_SECURITY_LURE,
+  UTILITY_WORDS,
+  DISCONNECT_PHRASES,
+  DISCONNECT_SOFT_WORDS,
+  DISCONNECT_TIME_WORDS,
+  UNPAID_WORDS,
+  BILL_WORDS,
+  PAY_NOW_VERBS,
+  PAY_NOW_WORDS,
+  PAY_NOW_GAP_WORDS,
+  PAYMENT_SUBJECTS,
+  PAYMENT_FAILED_STATES,
+  CARD_FAILED_STATES,
+  PAYMENT_UPDATE_VERBS,
+  PAYMENT_DETAIL_WORDS,
+  ACCOUNT_THREAT_THINGS,
+  ACCOUNT_THREAT_STATES,
+  LOGIN_ACTORS,
+  LOGIN_VERBS,
+  LOGIN_ODD_WORDS,
+  LOGIN_EVENTS,
+  SECURE_VERBS,
+  SECURE_OBJECTS,
+  JOB_FEE_KINDS,
+  JOB_FEE_WORDS,
+  JOB_SLOT_VERBS,
+  JOB_SLOT_WORDS,
+  JOB_FEE_NEGATIONS,
+  JOB_CONTEXT_EXTRA,
+  REMOTE_WORK_PHRASES,
+  REMOTE_PAY_PERIODS,
+  NO_EXPERIENCE_WORDS,
+  NO_EXPERIENCE_FILLERS,
+  CHAT_APPS,
+  CHAT_CONTACT_VERBS,
+  CHAT_PROXIMITY_CHARS,
 } from "../config.js";
 import { makeRedFlag } from "../util/flag.js";
 import { normalize } from "../util/normalize.js";
 import { findLinks } from "../util/links.js";
 import { registrableDomain } from "../util/hostname.js";
+import { isLureDomain, hasRiskyTld } from "../util/lure.js";
+import { DEFAULT_BRANDS } from "../brands.js";
 
 // ---------------------------------------------------------------------------
 // Regex builders. Phrases are fixed strings: escaped, joined with "|", single spaces become \s+
@@ -522,6 +564,67 @@ const RECRUITER_RE = re(
 const JOB_RE = wordsRegex(JOB_WORDS);
 const JOB_DOC_RE = wordsRegex(JOB_DOC_WORDS);
 
+// utility-disconnection-threat
+const UTILITY_RE = wordsRegex(UTILITY_WORDS);
+const DISCONNECT_RE = re(
+  `${words(DISCONNECT_PHRASES)}|${words(DISCONNECT_SOFT_WORDS)}\\s+${anyOf(DISCONNECT_TIME_WORDS)}\\b`,
+);
+const UNPAID_RE = re(
+  `${words(UNPAID_WORDS)}\\s+(?:[a-z]{1,15}\\s+)?${anyOf(BILL_WORDS)}\\b` + // "unpaid bill", "overdue electricity bill"
+    `|${words(BILL_WORDS)}\\s+(?:is|are|remains|remain)\\s+(?:still\\s+)?${anyOf(UNPAID_WORDS)}\\b` + // "bill is overdue"
+    `|\\bdues\\b`,
+);
+const PAY_NOW_RE = re(`${words(PAY_NOW_VERBS)}(?:\\s+[a-z']{1,15}){0,${PAY_NOW_GAP_WORDS}}?\\s+${anyOf(PAY_NOW_WORDS)}\\b`);
+
+// payment-failed-lure
+const PAYMENT_FAILED_RE = re(
+  [
+    // "Payment failed", "your subscription payment was declined"
+    `${words(PAYMENT_SUBJECTS)}\\s+(?:[a-z]{1,15}\\s+)?(?:(?:has|had|was|is)\\s+)?${anyOf(PAYMENT_FAILED_STATES)}\\b`,
+    // "We couldn't process your payment"
+    `\\b(?:could\\s+not|couldn't|unable\\s+to|failed\\s+to)\\s+(?:process|charge|renew|complete)\\s+your\\s+(?:[a-z]{1,15}\\s+)?${anyOf(["payment", "card", "subscription", "renewal"])}\\b`,
+    // "Your card ending in 4821 was declined", "card has expired"
+    `\\bcards?\\b(?:\\s+[a-z0-9]{1,15}){0,4}?\\s+(?:(?:was|has\\s+been|is|has|got)\\s+)?${anyOf(CARD_FAILED_STATES)}\\b`,
+  ].join("|"),
+);
+const PAYMENT_UPDATE_RE = re(
+  `${NOT_GOVERNED}${words(PAYMENT_UPDATE_VERBS)}\\s+(?:your\\s+|the\\s+|a\\s+)?(?:[a-z]{1,15}\\s+)?${anyOf(PAYMENT_DETAIL_WORDS)}\\b`,
+);
+// "or your account will be permanently deleted"
+const ACCOUNT_THREAT_RE = re(
+  `${words(ACCOUNT_THREAT_THINGS)}\\s+(?:will|would|may|is\\s+going\\s+to)\\s+be\\s+(?:[a-z]{1,15}\\s+)?${anyOf(ACCOUNT_THREAT_STATES)}\\b`,
+);
+
+// account-security-lure
+const LOGIN_ALERT_RE = re(
+  [
+    `${words(LOGIN_ACTORS)}(?:\\s+[a-z]{1,15}){0,4}?\\s+${anyOf(LOGIN_VERBS)}\\b`, // "Someone in Lisbon signed in"
+    `${words(LOGIN_ODD_WORDS)}\\s+(?:[a-z-]{1,15}\\s+)?${anyOf(LOGIN_EVENTS)}\\b`, // "unusual sign-in activity"
+    `\\bnew\\s+${anyOf(["sign-in", "sign in", "login", "log-in", "log in"])}\\b`, // "a new sign-in"
+  ].join("|"),
+);
+const SECURE_ACTION_RE = re(
+  `${NOT_GOVERNED}${words(SECURE_VERBS)}\\s+(?:the\\s+|this\\s+|your\\s+|that\\s+)?(?:[a-z]{1,15}\\s+)?${anyOf(SECURE_OBJECTS)}\\b`,
+);
+
+// Job fee (advance-fee-scheme + context.jobFee): "800 BDT onboarding fee", "refundable security
+// deposit", or "lock your slot" together with an amount, in a job context.
+const JOB_FEE_RE = re(
+  `(?<!\\b${anyOf(JOB_FEE_NEGATIONS)}\\s(?:[a-z]{1,15}\\s)?)${words(JOB_FEE_KINDS)}\\s+(?:[a-z]{1,15}\\s+)?${anyOf(JOB_FEE_WORDS)}\\b` +
+    `(?!\\s+(?:is|are|will\\s+be)\\s+(?:covered|waived|free|refunded|paid\\s+by))`,
+);
+const JOB_SLOT_RE = re(`${words(JOB_SLOT_VERBS)}\\s+(?:your|the|a|this)\\s+(?:[a-z]{1,15}\\s+)?${anyOf(JOB_SLOT_WORDS)}\\b`);
+const CUR_AMOUNT_RE = re(CUR_AMOUNT);
+const JOB_CONTEXT_EXTRA_RE = wordsRegex(JOB_CONTEXT_EXTRA);
+
+// task-job-scam, remote-work path
+const REMOTE_WORK_RE = wordsRegex(REMOTE_WORK_PHRASES);
+const REMOTE_PAY_RE = re(`${CUR_RANGE}\\s*(?:${anyOf(REMOTE_PAY_PERIODS)}\\b|\\/\\s?(?:day|week|wk)\\b)`);
+const NO_EXPERIENCE_RE = re(`\\bno\\s+(?:${anyOf(NO_EXPERIENCE_FILLERS)}\\s+)?${anyOf(NO_EXPERIENCE_WORDS)}\\b`);
+const CHAT_APP_RE = re(
+  `${words(CHAT_CONTACT_VERBS)}${near(CHAT_PROXIMITY_CHARS)}\\b(?:on|via|through|in|at|over)\\s+${anyOf(CHAT_APPS)}\\b`,
+);
+
 // ---------------------------------------------------------------------------
 // Matching on the normalized text
 // ---------------------------------------------------------------------------
@@ -645,10 +748,17 @@ function detectTaskJob(norm) {
   const reply = findAll(norm, TASK_REPLY_RE);
   const others = (pay.length > 0) + (easy.length > 0) + (reply.length > 0);
   // Paid simple tasks plus one more cue, or pay + easy hours + "reply YES" together.
-  const fires = work.length > 0 ? others >= 1 : others === 3;
-  if (!fires) return NO_SIGNAL;
-  const lead = [...work, ...pay].sort((a, b) => a.index - b.index);
-  return familySignal("task-job-scam", W_TASK_JOB_SCAM, lead, [...easy, ...reply]);
+  if (work.length > 0 ? others >= 1 : others === 3) {
+    const lead = [...work, ...pay].sort((a, b) => a.index - b.index);
+    return familySignal("task-job-scam", W_TASK_JOB_SCAM, lead, [...easy, ...reply]);
+  }
+  // Round 2: remote / data-entry work + daily or weekly pay + "no experience" + a chat app.
+  const remote = findAll(norm, REMOTE_WORK_RE);
+  const remotePay = findAll(norm, REMOTE_PAY_RE);
+  const noExperience = findAll(norm, NO_EXPERIENCE_RE);
+  const chat = [...findAll(norm, CHAT_APP_RE), ...reply];
+  if (remote.length === 0 || remotePay.length === 0 || noExperience.length === 0 || chat.length === 0) return NO_SIGNAL;
+  return familySignal("task-job-scam", W_TASK_JOB_SCAM, remote, [...remotePay, ...noExperience, ...chat]);
 }
 
 function detectOfficialFine(norm, links) {
@@ -685,6 +795,51 @@ function detectRecruiterBait(norm, links) {
   return familySignal("recruiter-bait", W_RECRUITER_BAIT, recruiter, [...job, ...doc]);
 }
 
+/** A link that is not an ordinary company address: lure words, risky ending, shortener or raw IP. */
+function isSuspiciousLink(link, brands) {
+  return isLureDomain(link.host, brands) || hasRiskyTld(link.host) || link.shortener || /^[\d.]+$/.test(link.host);
+}
+
+function detectUtilityDisconnection(norm, links) {
+  const disconnect = findAll(norm, DISCONNECT_RE);
+  if (disconnect.length === 0) return NO_SIGNAL;
+  const utility = findAll(norm, UTILITY_RE);
+  const unpaid = findAll(norm, UNPAID_RE);
+  if (utility.length === 0 || unpaid.length === 0) return NO_SIGNAL;
+  const payNow = findAll(norm, PAY_NOW_RE);
+  if (links.length === 0 && payNow.length === 0) return NO_SIGNAL;
+  return familySignal("utility-disconnection-threat", W_UTILITY_DISCONNECTION_THREAT, disconnect, [...unpaid, ...payNow]);
+}
+
+function detectPaymentFailed(norm, links, brands) {
+  if (links.length === 0) return NO_SIGNAL;
+  const failed = findAll(norm, PAYMENT_FAILED_RE);
+  const update = findAll(norm, PAYMENT_UPDATE_RE);
+  if (failed.length === 0 || update.length === 0) return NO_SIGNAL;
+  // An hours-level deadline or a deletion threat; "within 7 days" alone is an ordinary grace period.
+  const pressure = matchesInOrder(norm, [URGENCY_DEADLINE_RE, ACCOUNT_THREAT_RE]);
+  if (pressure.length === 0 && !links.some((l) => isSuspiciousLink(l, brands))) return NO_SIGNAL;
+  return familySignal("payment-failed-lure", W_PAYMENT_FAILED_LURE, failed, [...update, ...pressure]);
+}
+
+function detectAccountSecurity(norm, links, brands) {
+  if (!links.some((l) => isSuspiciousLink(l, brands))) return NO_SIGNAL;
+  const alert = findAll(norm, LOGIN_ALERT_RE);
+  const action = findAll(norm, SECURE_ACTION_RE);
+  if (alert.length === 0 || action.length === 0) return NO_SIGNAL;
+  return familySignal("account-security-lure", W_ACCOUNT_SECURITY_LURE, alert, action);
+}
+
+/** Fee matches that ask for money before a job starts; empty without a job context. */
+function jobFeeMatches(norm) {
+  const fee = findAll(norm, JOB_FEE_RE);
+  const slot = findAll(norm, CUR_AMOUNT_RE).length > 0 ? findAll(norm, JOB_SLOT_RE) : [];
+  if (fee.length === 0 && slot.length === 0) return [];
+  const jobContext =
+    findAll(norm, JOB_RE).length > 0 || findAll(norm, RECRUITER_RE).length > 0 || findAll(norm, JOB_CONTEXT_EXTRA_RE).length > 0;
+  return jobContext ? [...fee, ...slot] : [];
+}
+
 function dedupeAndCap(phrases) {
   const seen = new Set();
   const out = [];
@@ -700,9 +855,12 @@ function dedupeAndCap(phrases) {
 
 /**
  * @param {string} input
- * @returns {{ flags: object[], cursedPhrases: object[], paymentInstruction: boolean }}
+ * @param {ReadonlyArray<{ name: string, domains: ReadonlyArray<string> }>} [brands] official domains
+ *        that never count as lookalike lure domains
+ * @returns {{ flags: object[], cursedPhrases: object[], paymentInstruction: boolean,
+ *             secretRequest: boolean, jobFee: boolean }}
  */
-export function detectContent(input) {
+export function detectContent(input, brands = DEFAULT_BRANDS) {
   const norm = normalize(input);
   const urgencyEn = phraseSignal(norm, "urgency-en", W_URGENCY_EN, [
     URGENCY_EN_RE,
@@ -722,11 +880,14 @@ export function detectContent(input) {
     outside(matchesInOrder(norm, [CREDENTIAL_EN_RE, CREDENTIAL_UPPER_RE]), notRequests),
   );
   const prize = phraseSignal(norm, "prize-lottery", W_PRIZE_LOTTERY, [PRIZE_RE, CONGRATS_RE, MONEY_RE, PERCENT_RETURN_RE]);
-  const advanceFee = phraseSignal(norm, "advance-fee-scheme", W_ADVANCE_FEE_SCHEME, [
-    ADVANCE_FEE_RE,
-    TRANSFER_OF_MONEY_RE,
-    FEE_CONDITION_RE,
-  ]);
+  const jobFee = jobFeeMatches(norm);
+  const advanceFee = signalFrom(
+    "advance-fee-scheme",
+    W_ADVANCE_FEE_SCHEME,
+    [...matchesInOrder(norm, [ADVANCE_FEE_RE, TRANSFER_OF_MONEY_RE, FEE_CONDITION_RE]), ...jobFee].sort(
+      (a, b) => a.index - b.index,
+    ),
+  );
   const financialInfo = phraseSignal(norm, "financial-info-request", W_FINANCIAL_INFO_REQUEST, [FINANCIAL_INFO_RE]);
   const payment = phraseSignal(norm, "unusual-payment-method", W_UNUSUAL_PAYMENT_METHOD, [
     PAYMENT_METHOD_RE,
@@ -744,6 +905,9 @@ export function detectContent(input) {
   const taskJob = detectTaskJob(norm);
   const officialFine = detectOfficialFine(norm, links);
   const recruiter = detectRecruiterBait(norm, links);
+  const utility = detectUtilityDisconnection(norm, links);
+  const paymentFailed = detectPaymentFailed(norm, links, brands);
+  const accountSecurity = detectAccountSecurity(norm, links, brands);
 
   // New signals come after the original ones so existing flag and phrase order is unchanged.
   const flags = [
@@ -764,6 +928,9 @@ export function detectContent(input) {
     taskJob.flag,
     officialFine.flag,
     recruiter.flag,
+    utility.flag,
+    paymentFailed.flag,
+    accountSecurity.flag,
   ].filter(Boolean);
   const cursedPhrases = dedupeAndCap([
     ...urgencyEn.phrases,
@@ -782,11 +949,15 @@ export function detectContent(input) {
     ...taskJob.phrases,
     ...officialFine.phrases,
     ...recruiter.phrases,
+    ...utility.phrases,
+    ...paymentFailed.phrases,
+    ...accountSecurity.phrases,
   ]);
   return {
     flags,
     cursedPhrases,
     paymentInstruction: findAll(norm, PAYMENT_INSTRUCTION_RE).length > 0,
     secretRequest: findAll(norm, SECRET_REQUEST_RE).length > 0,
+    jobFee: jobFee.length > 0,
   };
 }

@@ -32,6 +32,11 @@ export const W_INVESTMENT_GUARANTEE = 25;
 export const W_TASK_JOB_SCAM = 25;
 export const W_OFFICIAL_FINE_THREAT = 25;
 export const W_RECRUITER_BAIT = 20;
+export const W_LOOKALIKE_LURE_DOMAIN = 20;
+export const W_LOOKALIKE_LURE_DOMAIN_STRONG = 30; // the same signal on a risky TLD or a defanged link
+export const W_UTILITY_DISCONNECTION_THREAT = 25;
+export const W_PAYMENT_FAILED_LURE = 25;
+export const W_ACCOUNT_SECURITY_LURE = 25;
 
 // ---------------------------------------------------------------------------
 // Category caps
@@ -72,6 +77,11 @@ export const FLOOR_INVESTMENT_PRESSURE = 70; // 4.19: the same + urgency-en or u
 export const FLOOR_TASK_JOB = 50; // 4.20: paid "like videos" / trial-task job bait
 export const FLOOR_OFFICIAL_FINE = 60; // 4.21: fine/tax/police + pay + deadline or legal threat + a link
 export const FLOOR_RECRUITER_BAIT = 50; // 4.22: unsolicited recruiter + role + a doc/brief on an unfamiliar link
+// Round 2.
+export const FLOOR_UTILITY_DISCONNECTION = 50; // 4.23: utility + disconnection + unpaid bill + a link or "pay now"
+export const FLOOR_PAYMENT_FAILED = 50; // 4.24: failed payment + "update payment details" + a suspicious link or a threat
+export const FLOOR_ACCOUNT_SECURITY = 50; // 4.25: sign-in alert + "cancel/secure" + a lookalike link
+export const FLOOR_JOB_FEE = 60; // 4.26: a job/hiring context + an upfront onboarding/registration/training fee
 
 // ---------------------------------------------------------------------------
 // Blend coefficients
@@ -178,6 +188,10 @@ export const SIGNAL_CATEGORY = Object.freeze({
   "task-job-scam": CATEGORY_CONTENT,
   "official-fine-threat": CATEGORY_CONTENT,
   "recruiter-bait": CATEGORY_CONTENT,
+  "lookalike-lure-domain": CATEGORY_LINK,
+  "utility-disconnection-threat": CATEGORY_CONTENT,
+  "payment-failed-lure": CATEGORY_CONTENT,
+  "account-security-lure": CATEGORY_CONTENT,
 });
 
 export const CATEGORY_CAPS = Object.freeze({
@@ -191,7 +205,10 @@ export const ALL_SIGNAL_IDS = Object.freeze(Object.keys(SIGNAL_CATEGORY));
 // ---------------------------------------------------------------------------
 // Word lists
 // ---------------------------------------------------------------------------
-export const RISKY_TLDS = Object.freeze(["xyz", "top", "click", "tk", "ml", "ga", "cf"]); // exactly Requirement 2.6
+// Requirement 2.6, extended in round 2 with endings common on throwaway lure domains.
+export const RISKY_TLDS = Object.freeze([
+  "xyz", "top", "click", "tk", "ml", "ga", "cf", "support", "online", "info", "site", "icu",
+]);
 export const DANGEROUS_EXTENSIONS = Object.freeze(["exe", "scr", "vbs", "bat", "cmd", "js", "lnk", "iso", "img"]);
 export const JS_LIBRARY_ALLOWLIST = Object.freeze(["node", "react", "vue", "next", "nuxt", "express", "angular", "d3", "three"]);
 export const SECOND_LEVEL_LABELS = Object.freeze(["com", "co", "org", "net", "gov", "edu", "ac"]); // used with 2-letter country TLDs, e.g. com.bd, co.uk
@@ -887,6 +904,123 @@ export const RECRUITER_TRUSTED_DOMAINS = Object.freeze([
   "greenhouse.io", "workable.com", "myworkdayjobs.com",
 ]);
 
+// lookalike-lure-domain: a registrable label made of 2+ hyphen-joined lure words
+// ("secure-login-help", "billing-update-verify"). Only the label just before the public suffix
+// counts, so a subdomain of a real company ("billing-help.example.com") is left alone.
+export const LURE_WORDS = Object.freeze([
+  "verify", "verification", "secure", "security", "login", "signin", "update", "billing", "payment",
+  "pay", "account", "support", "help", "portal", "check", "restore", "sync", "claim", "refund", "track",
+  "tracking", "parcel", "wallet", "utility", "tax", "fine", "confirm", "recovery", "recover", "unlock",
+  "auth", "reset", "card", "bill", "delivery", "redelivery", "customs", "session", "alert",
+]);
+export const LURE_WORDS_MIN = 2;
+// Ordinary domains that happen to match the lure-word pattern (registrable domain, lowercase).
+// The default brands' domains are skipped as well (detectors/link.js).
+export const LOOKALIKE_SAFE_DOMAINS = Object.freeze([]);
+
+// utility-disconnection-threat: utility + disconnection + unpaid bill + a link or "pay now".
+export const UTILITY_WORDS = Object.freeze([
+  "electricity", "electric", "power", "gas", "water", "internet", "broadband", "wifi", "wi-fi",
+  "line", "connection", "meter", "supply",
+]);
+export const DISCONNECT_PHRASES = Object.freeze([
+  "disconnection", "disconnected", "disconnect", "cut off", "cut-off", "cutoff", "shut off",
+  "shutoff", "switched off", "terminated", "termination",
+]);
+// "suspended" only counts with a time word right after it ("suspended tonight").
+export const DISCONNECT_SOFT_WORDS = Object.freeze(["suspended", "stopped", "blocked"]);
+export const DISCONNECT_TIME_WORDS = Object.freeze(["tonight", "today", "within", "in", "by"]);
+export const UNPAID_WORDS = Object.freeze(["unpaid", "overdue", "outstanding", "pending", "non-payment", "nonpayment"]);
+export const BILL_WORDS = Object.freeze(["bill", "bills", "dues", "balance", "payment", "amount", "charges", "invoice"]);
+// "Clear dues now", "pay now", "pay immediately": a direct order to pay right away.
+export const PAY_NOW_VERBS = Object.freeze(["pay", "clear", "settle", "recharge"]);
+export const PAY_NOW_WORDS = Object.freeze(["now", "immediately", "today", "tonight", "right away", "asap"]);
+export const PAY_NOW_GAP_WORDS = 3; // "clear your dues now", "pay the bill immediately"
+
+// payment-failed-lure: a failed payment + "update your payment details".
+export const PAYMENT_SUBJECTS = Object.freeze([
+  "payment", "billing", "subscription", "renewal", "transaction", "charge", "auto-renewal", "autopay",
+]);
+export const PAYMENT_FAILED_STATES = Object.freeze([
+  "failed", "was declined", "has been declined", "declined", "was unsuccessful", "unsuccessful",
+  "could not be processed", "couldn't be processed", "did not go through", "didn't go through",
+  "was rejected", "has failed", "bounced",
+]);
+export const CARD_FAILED_STATES = Object.freeze(["declined", "expired", "rejected"]);
+export const PAYMENT_UPDATE_VERBS = Object.freeze([
+  "update", "verify", "re-enter", "reenter", "confirm", "re-confirm", "reconfirm", "re-add", "replace", "fix",
+]);
+export const PAYMENT_DETAIL_WORDS = Object.freeze([
+  "payment method", "payment methods", "payment details", "payment information", "payment info",
+  "billing details", "billing information", "billing info", "billing method", "billing address",
+  "card details", "card information", "card info", "payment card", "card",
+]);
+// "or your account will be deleted", "account will be permanently closed".
+export const ACCOUNT_THREAT_THINGS = Object.freeze(["account", "subscription", "membership", "service", "profile", "plan"]);
+export const ACCOUNT_THREAT_STATES = Object.freeze([
+  "deleted", "suspended", "closed", "cancelled", "canceled", "terminated", "deactivated", "removed", "locked",
+]);
+
+// account-security-lure: a sign-in alert + an order to cancel/secure it + a lookalike link.
+export const LOGIN_ACTORS = Object.freeze([
+  "someone", "somebody", "an unknown person", "an unknown user", "an unknown device", "a stranger",
+]);
+export const LOGIN_VERBS = Object.freeze([
+  "logged in", "logged into", "signed in", "signed into", "accessed", "tried to log in",
+  "tried to sign in", "attempted to log in", "attempted to sign in",
+]);
+export const LOGIN_ODD_WORDS = Object.freeze([
+  "unusual", "suspicious", "unrecognized", "unrecognised", "unknown", "unauthorized", "unauthorised", "strange",
+]);
+export const LOGIN_EVENTS = Object.freeze([
+  "sign-in", "sign in", "signin", "login", "log-in", "log in", "activity", "access", "session",
+  "sessions", "device", "login attempt", "sign-in attempt",
+]);
+export const SECURE_VERBS = Object.freeze([
+  "cancel", "secure", "verify", "review", "terminate", "end", "block", "stop", "revoke", "confirm",
+  "deny", "report", "lock", "protect", "sign out", "log out",
+]);
+export const SECURE_OBJECTS = Object.freeze([
+  "session", "sessions", "login", "sign-in", "sign in", "access", "account", "device", "activity",
+  "request", "attempt",
+]);
+
+// Job fee (advance-fee-scheme, floor 4.26): a fee asked before starting a job.
+export const JOB_FEE_KINDS = Object.freeze([
+  "onboarding", "registration", "training", "verification", "joining", "enrollment", "enrolment",
+  "application", "security", "background check", "uniform", "kit", "placement", "refundable",
+]);
+export const JOB_FEE_WORDS = Object.freeze(["fee", "fees", "deposit", "charge", "charges", "payment", "cost"]);
+export const JOB_SLOT_VERBS = Object.freeze(["lock", "secure", "reserve", "hold", "book"]);
+export const JOB_SLOT_WORDS = Object.freeze(["slot", "seat", "spot", "position", "place", "offer", "role"]);
+// "There is no registration fee", "we never charge an onboarding fee".
+export const JOB_FEE_NEGATIONS = Object.freeze(["no", "zero", "without", "free", "never charge", "never charge a", "never charge an", "not charge", "no hidden"]);
+// The job context: JOB_WORDS and RECRUITER_TITLES plus these.
+export const JOB_CONTEXT_EXTRA = Object.freeze([
+  "hire", "hired", "hiring", "recruit", "onboarding", "interview", "salary", "job offer",
+  "employment", "internship", "shortlisted",
+]);
+
+// task-job-scam, remote-work path: remote/data-entry/review work + daily/weekly pay + "no
+// experience" + contact through a chat app.
+export const REMOTE_WORK_PHRASES = Object.freeze([
+  "remote", "data entry", "data-entry", "typing job", "typing jobs", "product review", "product reviews",
+  "online job", "online jobs", "online work", "home-based", "home based", "work from home", "from home",
+]);
+export const REMOTE_PAY_PERIODS = Object.freeze([
+  "daily", "per day", "a day", "each day", "every day", "weekly", "per week", "a week", "each week",
+]);
+export const REMOTE_PAY_VERBS = Object.freeze([
+  "earn", "earning", "make", "get", "receive", "paid", "paying", "pays", "income of", "salary of", "salary",
+]);
+export const NO_EXPERIENCE_WORDS = Object.freeze(["experience", "skills", "qualification", "qualifications", "degree"]);
+export const NO_EXPERIENCE_FILLERS = Object.freeze(["prior", "previous", "special", "work", "relevant", "formal"]);
+export const CHAT_APPS = Object.freeze(["telegram", "whatsapp", "signal", "wechat", "viber", "imo"]);
+export const CHAT_CONTACT_VERBS = Object.freeze([
+  "message", "contact", "text", "dm", "reach", "chat with", "add", "join", "ping", "inbox", "write to", "talk to",
+]);
+export const CHAT_PROXIMITY_CHARS = 30; // "message our HR team on Telegram"
+
 // ---------------------------------------------------------------------------
 // Plain-English explanations (design: "Plain-English Explanations" table).
 // "{e}" is replaced by the flag's evidence.
@@ -946,6 +1080,14 @@ export const EXPLANATION_TEMPLATES = Object.freeze({
     'The message claims you owe a fine, tax or penalty and must pay through a link quickly or face legal action ("{e}"). Government offices do not collect fines through links in text messages. Check on the official website or app yourself.',
   "recruiter-bait":
     'A stranger offers you a job and sends a "brief" or form on an unfamiliar link ("{e}"). Fake recruiters use these links to steal logins or install harmful files. Check the company and the recruiter yourself first.',
+  "lookalike-lure-domain":
+    'The web address "{e}" is stitched together from words like "secure", "verify", "billing" or "pay". Real companies use their own name as their address; throwaway scam sites use words like these to look official.',
+  "utility-disconnection-threat":
+    'The message threatens to cut off your electricity, gas, water or internet over an unpaid bill and pushes you to pay right away ("{e}"). Utility companies do not collect bills through links in text messages. Check your bill in the official app or office.',
+  "payment-failed-lure":
+    'The message says a payment failed and asks you to re-enter your card or billing details through a strange link or under a deadline ("{e}"). Fake "payment failed" pages are built to steal card details. Open the service\'s own app or website yourself instead.',
+  "account-security-lure":
+    'The message warns about a strange sign-in and asks you to cancel or secure it through a link that is not the company\'s real address ("{e}"). The link leads to a fake sign-in page that steals your password. Check your account in the official app.',
   "defanged-link":
     'The link "{e}" is written in a disguised way (for example "[.]" or "dot" instead of a dot). Scammers do this to slip links past spam filters. Treat it like a real link and do not open it.',
 });
@@ -970,4 +1112,7 @@ export const CURSED_PHRASE_REASONS = Object.freeze({
   "task-job-scam": "This offers easy money for simple online tasks. These jobs end with you paying them.",
   "official-fine-threat": "This demands a fine or tax through a link, with a threat. Officials do not collect fines this way.",
   "recruiter-bait": "This is an unsolicited job offer with a link to a document. Check the recruiter before opening it.",
+  "utility-disconnection-threat": "This threatens to cut off a utility unless you pay now. Check your bill in the official app.",
+  "payment-failed-lure": "This claims a payment failed and asks for your card details again. Use the official app instead.",
+  "account-security-lure": "This is a sign-in alert that sends you to a fake page. Check your account in the official app.",
 });

@@ -61,8 +61,8 @@ export function score(input, options) {
   // Fixed detector order gives a deterministic flag order.
   const identity = detectIdentity(input, brands);
   const authHeaders = detectAuthHeaders(input);
-  const links = detectLinks(input);
-  const content = detectContent(input);
+  const links = detectLinks(input, brands);
+  const content = detectContent(input, brands);
 
   const redFlags = uniqueById([...identity.flags, ...authHeaders.flags, ...links.flags, ...content.flags]);
   const l1Score = computeL1(redFlags);
@@ -71,7 +71,7 @@ export function score(input, options) {
     l2Hit,
     l3Score,
     redFlags.map((f) => f.id),
-    { paymentInstruction: content.paymentInstruction, secretRequest: content.secretRequest },
+    { paymentInstruction: content.paymentInstruction, secretRequest: content.secretRequest, jobFee: content.jobFee },
   );
 
   return {

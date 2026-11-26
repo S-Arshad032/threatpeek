@@ -1,4 +1,5 @@
-// Link detector: raw-ip-url, risky-tld, link-text-mismatch, defanged-link. All Link category.
+// Link detector: raw-ip-url, risky-tld, link-text-mismatch, defanged-link, lookalike-lure-domain.
+// All Link category.
 // Produces no cursed phrases. Defanged links ("evil[.]com", "hxxps://") are refanged first, so
 // every check sees them as ordinary links.
 
@@ -7,6 +8,8 @@ import {
   W_RISKY_TLD,
   W_LINK_TEXT_MISMATCH,
   W_DEFANGED_LINK,
+  W_LOOKALIKE_LURE_DOMAIN,
+  W_LOOKALIKE_LURE_DOMAIN_STRONG,
   MAX_DEFANG_EVIDENCE_CHARS,
   RISKY_TLDS,
   IPV4_OCTET_MAX,
@@ -17,6 +20,9 @@ import {
 import { registrableDomain } from "../util/hostname.js";
 import { makeRedFlag } from "../util/flag.js";
 import { refang, findDefang } from "../util/normalize.js";
+import { findLinks } from "../util/links.js";
+import { isLureDomain, hasRiskyTld } from "../util/lure.js";
+import { DEFAULT_BRANDS } from "../brands.js";
 
 // A trailing sentence dot is allowed, but not a dot that starts another hostname label.
 const IPV4_URL_RE = /https?:\/\/((?:\d{1,3}\.){3}\d{1,3})(?=\.?(?:[\s"'<>)\],;:\/?#]|$))/gi;
@@ -136,14 +142,29 @@ function detectDefanged(input) {
   return makeRedFlag("defanged-link", W_DEFANGED_LINK, input.slice(start, end));
 }
 
-/** @param {string} input */
-export function detectLinks(input) {
+// ---------------------------------------------------------------------------
+// lookalike-lure-domain
+// ---------------------------------------------------------------------------
+/** The first link whose domain is made of lure words; stronger on a risky TLD or when defanged. */
+function detectLookalike(input, brands) {
+  const lure = findLinks(input).find((l) => isLureDomain(l.host, brands));
+  if (!lure) return null;
+  const strong = hasRiskyTld(lure.host) || findDefang(input) !== null;
+  return makeRedFlag("lookalike-lure-domain", strong ? W_LOOKALIKE_LURE_DOMAIN_STRONG : W_LOOKALIKE_LURE_DOMAIN, lure.host);
+}
+
+/**
+ * @param {string} input
+ * @param {ReadonlyArray<{ name: string, domains: ReadonlyArray<string> }>} [brands]
+ */
+export function detectLinks(input, brands = DEFAULT_BRANDS) {
   const text = refang(input);
   const flags = [
     detectRawIp(text),
     detectRiskyTld(text),
     detectLinkTextMismatch(text),
     detectDefanged(input),
+    detectLookalike(input, brands),
   ].filter(Boolean);
   return { flags, cursedPhrases: [] };
 }
