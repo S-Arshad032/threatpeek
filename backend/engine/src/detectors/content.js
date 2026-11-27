@@ -186,6 +186,11 @@ import {
   W_UTILITY_DISCONNECTION_THREAT,
   W_PAYMENT_FAILED_LURE,
   W_ACCOUNT_SECURITY_LURE,
+  W_UNFAMILIAR_LINK_PRESSURE,
+  PRESSURE_DEADLINE_PHRASES,
+  PRESSURE_DEADLINE_UNITS,
+  PRESSURE_THREAT_WORDS,
+  PRESSURE_ASK_WORDS,
   UTILITY_WORDS,
   DISCONNECT_PHRASES,
   DISCONNECT_SOFT_WORDS,
@@ -226,7 +231,7 @@ import { makeRedFlag } from "../util/flag.js";
 import { normalize } from "../util/normalize.js";
 import { findLinks } from "../util/links.js";
 import { registrableDomain } from "../util/hostname.js";
-import { isLureDomain, hasRiskyTld } from "../util/lure.js";
+import { isLureDomain, hasRiskyTld, isUnfamiliarDomain } from "../util/lure.js";
 import { DEFAULT_BRANDS } from "../brands.js";
 
 // ---------------------------------------------------------------------------
@@ -841,6 +846,26 @@ function detectRecruiterBait(norm, links) {
 }
 
 /** A link that is not an ordinary company address: lure words, risky ending, shortener or raw IP. */
+// unfamiliar-link-pressure: pressure words in the text. The lookarounds skip words that are part
+// of a hostname or path ("verify" in "badge-verify.example"), so a domain never supplies its own
+// pressure.
+const PRESSURE_RE = re(
+  `(?<![.\\/-])(?:${words(PRESSURE_DEADLINE_PHRASES)}|\\bwithin\\s+\\d{1,3}\\s*${anyOf(PRESSURE_DEADLINE_UNITS)}\\b|` +
+    `${words(PRESSURE_THREAT_WORDS)}|${words(PRESSURE_ASK_WORDS)})(?![.\\/-][a-z0-9])`,
+);
+
+function detectUnfamiliarLinkPressure(norm, links, brands) {
+  const unfamiliar = links.find((l) => isUnfamiliarDomain(l, brands));
+  if (!unfamiliar) return NO_SIGNAL;
+  const pressure = findAll(norm, PRESSURE_RE);
+  if (pressure.length === 0) return NO_SIGNAL;
+  const reason = CURSED_PHRASE_REASONS["unfamiliar-link-pressure"];
+  return {
+    flag: makeRedFlag("unfamiliar-link-pressure", W_UNFAMILIAR_LINK_PRESSURE, unfamiliar.host),
+    phrases: pressure.map((m) => ({ text: m.text, reason })),
+  };
+}
+
 function isSuspiciousLink(link, brands) {
   return isLureDomain(link.host, brands) || hasRiskyTld(link.host) || link.shortener || /^[\d.]+$/.test(link.host);
 }
@@ -953,6 +978,7 @@ export function detectContent(input, brands = DEFAULT_BRANDS) {
   const utility = detectUtilityDisconnection(norm, links);
   const paymentFailed = detectPaymentFailed(norm, links, brands);
   const accountSecurity = detectAccountSecurity(norm, links, brands);
+  const unfamiliarLink = detectUnfamiliarLinkPressure(norm, links, brands);
 
   // New signals come after the original ones so existing flag and phrase order is unchanged.
   const flags = [
@@ -976,6 +1002,7 @@ export function detectContent(input, brands = DEFAULT_BRANDS) {
     utility.flag,
     paymentFailed.flag,
     accountSecurity.flag,
+    unfamiliarLink.flag,
   ].filter(Boolean);
   const cursedPhrases = dedupeAndCap([
     ...urgencyEn.phrases,
@@ -997,6 +1024,7 @@ export function detectContent(input, brands = DEFAULT_BRANDS) {
     ...utility.phrases,
     ...paymentFailed.phrases,
     ...accountSecurity.phrases,
+    ...unfamiliarLink.phrases,
   ]);
   return {
     flags,

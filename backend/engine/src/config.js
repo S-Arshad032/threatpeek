@@ -37,6 +37,7 @@ export const W_LOOKALIKE_LURE_DOMAIN_STRONG = 30; // the same signal on a risky 
 export const W_UTILITY_DISCONNECTION_THREAT = 25;
 export const W_PAYMENT_FAILED_LURE = 25;
 export const W_ACCOUNT_SECURITY_LURE = 25;
+export const W_UNFAMILIAR_LINK_PRESSURE = 25; // round 3: an unfamiliar link + pressure language
 
 // ---------------------------------------------------------------------------
 // Category caps
@@ -82,6 +83,7 @@ export const FLOOR_UTILITY_DISCONNECTION = 50; // 4.23: utility + disconnection 
 export const FLOOR_PAYMENT_FAILED = 50; // 4.24: failed payment + "update payment details" + a suspicious link or a threat
 export const FLOOR_ACCOUNT_SECURITY = 50; // 4.25: sign-in alert + "cancel/secure" + a lookalike link
 export const FLOOR_JOB_FEE = 60; // 4.26: a job/hiring context + an upfront onboarding/registration/training fee
+export const FLOOR_UNFAMILIAR_LINK_PRESSURE = 50; // 4.27: an unfamiliar link + a deadline, threat, fee or verify ask
 
 // ---------------------------------------------------------------------------
 // Blend coefficients
@@ -192,6 +194,7 @@ export const SIGNAL_CATEGORY = Object.freeze({
   "utility-disconnection-threat": CATEGORY_CONTENT,
   "payment-failed-lure": CATEGORY_CONTENT,
   "account-security-lure": CATEGORY_CONTENT,
+  "unfamiliar-link-pressure": CATEGORY_CONTENT,
 });
 
 export const CATEGORY_CAPS = Object.freeze({
@@ -975,11 +978,38 @@ export const LURE_WORDS = Object.freeze([
   "pay", "account", "support", "help", "portal", "check", "restore", "sync", "claim", "refund", "track",
   "tracking", "parcel", "wallet", "utility", "tax", "fine", "confirm", "recovery", "recover", "unlock",
   "auth", "reset", "card", "bill", "delivery", "redelivery", "customs", "session", "alert",
+  // round 3: official-sounding words seen in fee, grant and re-registration lures
+  "kyc", "sim", "nid", "tin", "vfs", "visa", "grant", "badge", "loan", "scholarship", "appeal", "relief",
+  "reg", "booking", "bd",
 ]);
 export const LURE_WORDS_MIN = 2;
 // Ordinary domains that happen to match the lure-word pattern (registrable domain, lowercase).
 // The default brands' domains are skipped as well (detectors/link.js).
 export const LOOKALIKE_SAFE_DOMAINS = Object.freeze([]);
+
+// unfamiliar-link-pressure (round 3): a link whose registrable domain is unfamiliar (a shortener,
+// a raw IP, a risky TLD, a label with UNFAMILIAR_MIN_HYPHENS hyphens, or a hyphenated label with a
+// lure word) AND pressure language in the text (a deadline, a threat to an account or service, a
+// fee or payment ask, or a verify/claim ask). Well-known real domains never count.
+export const UNFAMILIAR_MIN_HYPHENS = 2; // "foo-bar-baz.com"
+export const UNFAMILIAR_SAFE_DOMAINS = Object.freeze([
+  "google.com", "microsoft.com", "linkedin.com", "facebook.com", "instagram.com", "apple.com",
+  "amazon.com", "paypal.com", "bkash.com", "nagad.com.bd", "grameenphone.com", "robi.com.bd",
+  "example.com", "example.org",
+]);
+export const PRESSURE_DEADLINE_PHRASES = Object.freeze([
+  "today", "tonight", "before midnight", "by midnight", "expires", "expire", "expiring", "expiry",
+  "final notice", "last chance",
+]);
+export const PRESSURE_DEADLINE_UNITS = Object.freeze(["hours", "hour", "hrs", "hr", "minutes", "minute", "mins", "min", "days", "day"]);
+export const PRESSURE_THREAT_WORDS = Object.freeze([
+  "restricted", "restriction", "suspended", "suspension", "deactivated", "deactivation", "unpublished",
+  "blocked", "frozen", "legal action", "penalty", "penalties",
+]);
+export const PRESSURE_ASK_WORDS = Object.freeze([
+  "fee", "fees", "pay", "deposit", "settle", "verify", "re-verify", "appeal", "claim",
+  "update your details", "nid",
+]);
 
 // utility-disconnection-threat: utility + disconnection + unpaid bill + a link or "pay now".
 export const UTILITY_WORDS = Object.freeze([
@@ -1149,6 +1179,8 @@ export const EXPLANATION_TEMPLATES = Object.freeze({
     'The message threatens to cut off your electricity, gas, water or internet over an unpaid bill and pushes you to pay right away ("{e}"). Utility companies do not collect bills through links in text messages. Check your bill in the official app or office.',
   "payment-failed-lure":
     'The message says a payment failed and asks you to re-enter your card or billing details through a strange link or under a deadline ("{e}"). Fake "payment failed" pages are built to steal card details. Open the service\'s own app or website yourself instead.',
+  "unfamiliar-link-pressure":
+    'The message pushes you to act through a link to an unfamiliar website ("{e}"): a deadline, a threat to your account or service, or a request to pay, verify or claim something. Real banks, telecoms, governments and embassies send you to their own well-known website or app. Do not open the link; go to the official site yourself.',
   "account-security-lure":
     'The message warns about a strange sign-in and asks you to cancel or secure it through a link that is not the company\'s real address ("{e}"). The link leads to a fake sign-in page that steals your password. Check your account in the official app.',
   "defanged-link":
@@ -1178,4 +1210,5 @@ export const CURSED_PHRASE_REASONS = Object.freeze({
   "utility-disconnection-threat": "This threatens to cut off a utility unless you pay now. Check your bill in the official app.",
   "payment-failed-lure": "This claims a payment failed and asks for your card details again. Use the official app instead.",
   "account-security-lure": "This is a sign-in alert that sends you to a fake page. Check your account in the official app.",
+  "unfamiliar-link-pressure": "Pressure to act through a link to an unfamiliar website. Go to the official site yourself.",
 });

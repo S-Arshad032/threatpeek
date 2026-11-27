@@ -27,6 +27,7 @@ import {
   FLOOR_PAYMENT_FAILED,
   FLOOR_ACCOUNT_SECURITY,
   FLOOR_JOB_FEE,
+  FLOOR_UNFAMILIAR_LINK_PRESSURE,
   SCORE_MIN,
   SCORE_MAX,
 } from "./config.js";
@@ -107,6 +108,8 @@ export function blend(l1Score, l2Hit, l3Score, flags, context) {
   if (has("payment-failed-lure")) risk = Math.max(risk, FLOOR_PAYMENT_FAILED); // 4.24
   if (has("account-security-lure")) risk = Math.max(risk, FLOOR_ACCOUNT_SECURITY); // 4.25
   if (has("advance-fee-scheme") && context?.jobFee === true) risk = Math.max(risk, FLOOR_JOB_FEE); // 4.26
+  // 4.27: round 3. An unfamiliar link plus pressure language; 50 on its own (never more from this signal).
+  if (has("unfamiliar-link-pressure")) risk = Math.max(risk, FLOOR_UNFAMILIAR_LINK_PRESSURE); // 4.27
 
   return Math.round(Math.min(SCORE_MAX, Math.max(SCORE_MIN, risk))); // 4.13
 }
