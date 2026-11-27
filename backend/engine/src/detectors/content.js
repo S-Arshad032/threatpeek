@@ -131,6 +131,16 @@ import {
   MISTAKE_PROXIMITY_CHARS,
   INSTALL_VERBS,
   REMOTE_TOOL_WORDS,
+  REMOTE_TOOL_NAMES,
+  REMOTE_NAMED_VERBS,
+  MALWARE_WORDS,
+  MALWARE_EVENT_WORDS,
+  SCARE_DEVICE_WORDS,
+  AT_RISK_SUBJECTS,
+  SCARE_COUNT_WORDS,
+  SUPPORT_CALL_VERBS,
+  SUPPORT_WORDS,
+  REMOTE_SESSION_PHRASES,
   TOOL_WORDS,
   ACCESS_TARGETS,
   REQUEST_PROXIMITY_CHARS,
@@ -187,6 +197,7 @@ import {
   W_PAYMENT_FAILED_LURE,
   W_ACCOUNT_SECURITY_LURE,
   W_UNFAMILIAR_LINK_PRESSURE,
+  W_TECH_SUPPORT_SCAM,
   PRESSURE_DEADLINE_PHRASES,
   PRESSURE_DEADLINE_UNITS,
   PRESSURE_THREAT_WORDS,
@@ -531,7 +542,9 @@ const RETURN_REQUEST_RE = re(`${NOT_GOVERNED}${words(RETURN_REQUESTS)}`);
 const REMOTE_ACCESS_RE = re(
   `${NOT_GOVERNED}${words(INSTALL_VERBS)}${NEAR}${words(REMOTE_TOOL_WORDS)}${near(FEE_STATUS_PROXIMITY_CHARS)}${words(TOOL_WORDS)}` +
     `|\\b(?:give|grant|allow)\\b${NEAR}\\b(?:remote\\s+)?(?:access|control)\\s+(?:to|of)\\s+your\\s+${anyOf(ACCESS_TARGETS)}\\b` +
-    `|\\bremote\\s+(?:access|control)\\s+(?:to|of)\\s+your\\s+${anyOf(ACCESS_TARGETS)}\\b`,
+    `|\\bremote\\s+(?:access|control)\\s+(?:to|of)\\s+your\\s+${anyOf(ACCESS_TARGETS)}\\b` +
+    // a named remote-control tool with an instruction: "install AnyDesk", "open TeamViewer"
+    `|${NOT_GOVERNED}${words(REMOTE_NAMED_VERBS)}${NEAR}${words(REMOTE_TOOL_NAMES)}`,
 );
 
 // ---------------------------------------------------------------------------
@@ -854,6 +867,35 @@ const PRESSURE_RE = re(
     `${words(PRESSURE_THREAT_WORDS)}|${words(PRESSURE_ASK_WORDS)})(?![.\\/-][a-z0-9])`,
 );
 
+// tech-support-scam: a scare (malware event, infected, detected on your device, at risk, "5 viruses",
+// an error code) AND a hook (call/contact support, or install/open a remote tool or session).
+// Error codes are matched on the normalized text, where l33t mapping turns "0x80" into "ox8o".
+// A conditional ("If you think your account is at risk, contact us") is advice, not a claim.
+const TECH_SCARE_RE = re(
+  `(?<!\\b(?:if|whether|in\\s+case)\\b[^.!?\\n]{0,40})(?:` +
+  [
+    `${words(MALWARE_WORDS)}(?:[\\s.]+[a-z]{2,15}){0,2}?\\s+${anyOf(MALWARE_EVENT_WORDS)}\\b`, // "Trojan.Spyware detected"
+    `\\binfected\\s+with\\b|\\b(?:is|are|been|was|were)\\s+infected\\b`, // "has been infected"
+    `\\b(?:detected|found)\\s+(?:on|in)\\s+your\\s+(?:[a-z]{2,15}\\s+){0,2}?${anyOf(SCARE_DEVICE_WORDS)}\\b`, // "detected on your Windows PC"
+    `${words(AT_RISK_SUBJECTS)}\\s+(?:is|are)\\s+(?:now\\s+)?at\\s+risk\\b`, // "your banking passwords are at risk"
+    `\\b\\d{1,3}\\s+${anyOf(SCARE_COUNT_WORDS)}\\b`, // "5 viruses"
+    `\\berror\\b[^.!?\\n]{0,12}?\\b[0o]x[0-9a-fo]{4,8}\\b`, // "Error #0x8007002"
+  ].join("|") +
+  ")",
+);
+const TECH_HOOK_RE = re(
+  `${NOT_GOVERNED}${words(SUPPORT_CALL_VERBS)}${NEAR}${words(SUPPORT_WORDS)}` + // "Call our certified support desk"
+    `|${NOT_GOVERNED}${words(REMOTE_NAMED_VERBS)}${NEAR}(?:${words(REMOTE_TOOL_NAMES)}|${words(REMOTE_SESSION_PHRASES)})`, // "install AnyDesk"
+);
+
+function detectTechSupport(norm) {
+  const scare = findAll(norm, TECH_SCARE_RE);
+  if (scare.length === 0) return NO_SIGNAL;
+  const hook = findAll(norm, TECH_HOOK_RE);
+  if (hook.length === 0) return NO_SIGNAL;
+  return familySignal("tech-support-scam", W_TECH_SUPPORT_SCAM, scare, hook);
+}
+
 function detectUnfamiliarLinkPressure(norm, links, brands) {
   const unfamiliar = links.find((l) => isUnfamiliarDomain(l, brands));
   if (!unfamiliar) return NO_SIGNAL;
@@ -979,6 +1021,7 @@ export function detectContent(input, brands = DEFAULT_BRANDS) {
   const paymentFailed = detectPaymentFailed(norm, links, brands);
   const accountSecurity = detectAccountSecurity(norm, links, brands);
   const unfamiliarLink = detectUnfamiliarLinkPressure(norm, links, brands);
+  const techSupport = detectTechSupport(norm);
 
   // New signals come after the original ones so existing flag and phrase order is unchanged.
   const flags = [
@@ -1003,6 +1046,7 @@ export function detectContent(input, brands = DEFAULT_BRANDS) {
     paymentFailed.flag,
     accountSecurity.flag,
     unfamiliarLink.flag,
+    techSupport.flag,
   ].filter(Boolean);
   const cursedPhrases = dedupeAndCap([
     ...urgencyEn.phrases,
@@ -1025,6 +1069,7 @@ export function detectContent(input, brands = DEFAULT_BRANDS) {
     ...paymentFailed.phrases,
     ...accountSecurity.phrases,
     ...unfamiliarLink.phrases,
+    ...techSupport.phrases,
   ]);
   return {
     flags,

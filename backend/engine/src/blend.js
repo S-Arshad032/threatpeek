@@ -28,6 +28,7 @@ import {
   FLOOR_ACCOUNT_SECURITY,
   FLOOR_JOB_FEE,
   FLOOR_UNFAMILIAR_LINK_PRESSURE,
+  FLOOR_TECH_SUPPORT,
   SCORE_MIN,
   SCORE_MAX,
 } from "./config.js";
@@ -110,6 +111,8 @@ export function blend(l1Score, l2Hit, l3Score, flags, context) {
   if (has("advance-fee-scheme") && context?.jobFee === true) risk = Math.max(risk, FLOOR_JOB_FEE); // 4.26
   // 4.27: round 3. An unfamiliar link plus pressure language; 50 on its own (never more from this signal).
   if (has("unfamiliar-link-pressure")) risk = Math.max(risk, FLOOR_UNFAMILIAR_LINK_PRESSURE); // 4.27
+  // 4.28: a security scare about the reader's device + call support or install a remote tool.
+  if (has("tech-support-scam")) risk = Math.max(risk, FLOOR_TECH_SUPPORT); // 4.28
 
   return Math.round(Math.min(SCORE_MAX, Math.max(SCORE_MIN, risk))); // 4.13
 }

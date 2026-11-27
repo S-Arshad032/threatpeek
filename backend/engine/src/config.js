@@ -38,6 +38,7 @@ export const W_UTILITY_DISCONNECTION_THREAT = 25;
 export const W_PAYMENT_FAILED_LURE = 25;
 export const W_ACCOUNT_SECURITY_LURE = 25;
 export const W_UNFAMILIAR_LINK_PRESSURE = 25; // round 3: an unfamiliar link + pressure language
+export const W_TECH_SUPPORT_SCAM = 30; // a scare about the reader's device + call support / install a remote tool
 
 // ---------------------------------------------------------------------------
 // Category caps
@@ -84,6 +85,7 @@ export const FLOOR_PAYMENT_FAILED = 50; // 4.24: failed payment + "update paymen
 export const FLOOR_ACCOUNT_SECURITY = 50; // 4.25: sign-in alert + "cancel/secure" + a lookalike link
 export const FLOOR_JOB_FEE = 60; // 4.26: a job/hiring context + an upfront onboarding/registration/training fee
 export const FLOOR_UNFAMILIAR_LINK_PRESSURE = 50; // 4.27: an unfamiliar link + a deadline, threat, fee or verify ask
+export const FLOOR_TECH_SUPPORT = 60; // 4.28: a device/account security scare + call support or install a remote tool
 
 // ---------------------------------------------------------------------------
 // Blend coefficients
@@ -195,6 +197,7 @@ export const SIGNAL_CATEGORY = Object.freeze({
   "payment-failed-lure": CATEGORY_CONTENT,
   "account-security-lure": CATEGORY_CONTENT,
   "unfamiliar-link-pressure": CATEGORY_CONTENT,
+  "tech-support-scam": CATEGORY_CONTENT,
 });
 
 export const CATEGORY_CAPS = Object.freeze({
@@ -809,6 +812,30 @@ export const INSTALL_VERBS = Object.freeze(["install", "download", "run", "open"
 export const REMOTE_TOOL_WORDS = Object.freeze(["remote", "screen-sharing", "screen sharing"]);
 export const TOOL_WORDS = Object.freeze(["tool", "app", "application", "software", "program"]);
 export const ACCESS_TARGETS = Object.freeze(["computer", "pc", "device", "laptop", "phone", "screen"]);
+// Remote-control tools named by brand: "install AnyDesk" is a remote-access request even without
+// the words "remote" or "access". Fires with REMOTE_NAMED_VERBS before the name, same sentence.
+export const REMOTE_TOOL_NAMES = Object.freeze([
+  "anydesk", "teamviewer", "ultraviewer", "quick assist", "quickassist", "rustdesk", "supremo", "ammyy",
+  "logmein", "splashtop",
+]);
+export const REMOTE_NAMED_VERBS = Object.freeze([...INSTALL_VERBS, "allow", "launch", "accept", "set up", "get"]);
+
+// tech-support-scam: a security scare about the reader's device or account AND a remote-help hook
+// (call/contact support, or install/open a remote tool). Real security notices ("scan completed,
+// no threats found", "virus definitions updated") make no such claim and give no such order.
+export const MALWARE_WORDS = Object.freeze(["virus", "viruses", "malware", "trojan", "trojans", "spyware", "ransomware", "adware"]);
+export const MALWARE_EVENT_WORDS = Object.freeze(["detected", "found", "alert", "warning", "infection", "attack"]);
+export const SCARE_DEVICE_WORDS = Object.freeze(["computer", "pc", "device", "laptop", "phone", "mac", "system", "windows"]);
+export const AT_RISK_SUBJECTS = Object.freeze([
+  "password", "passwords", "data", "files", "computer", "pc", "device", "laptop", "phone", "system", "account",
+]);
+export const SCARE_COUNT_WORDS = Object.freeze(["viruses", "threats", "trojans", "infections"]);
+export const SUPPORT_CALL_VERBS = Object.freeze(["call", "contact", "phone", "dial", "ring", "reach", "speak to", "talk to"]);
+export const SUPPORT_WORDS = Object.freeze([
+  "support", "helpdesk", "help desk", "technician", "technicians", "technical", "tech team", "security team",
+  "certified", "toll-free", "toll free", "hotline", "helpline", "help line",
+]);
+export const REMOTE_SESSION_PHRASES = Object.freeze(["remote access", "remote session", "remote desktop", "remote control", "screen sharing"]);
 
 // ---------------------------------------------------------------------------
 // Scam families (content detector). Each signal needs several cues in the same message; a single
@@ -1179,6 +1206,8 @@ export const EXPLANATION_TEMPLATES = Object.freeze({
     'The message threatens to cut off your electricity, gas, water or internet over an unpaid bill and pushes you to pay right away ("{e}"). Utility companies do not collect bills through links in text messages. Check your bill in the official app or office.',
   "payment-failed-lure":
     'The message says a payment failed and asks you to re-enter your card or billing details through a strange link or under a deadline ("{e}"). Fake "payment failed" pages are built to steal card details. Open the service\'s own app or website yourself instead.',
+  "tech-support-scam":
+    'The message claims your device or account is infected or at risk ("{e}") and tells you to call a support number or install a remote-control app. This is the classic tech-support scam: the "technician" takes over your device or your bank login. Real antivirus and software companies do not call you or ask you to call them like this. Close the message and do not install anything.',
   "unfamiliar-link-pressure":
     'The message pushes you to act through a link to an unfamiliar website ("{e}"): a deadline, a threat to your account or service, or a request to pay, verify or claim something. Real banks, telecoms, governments and embassies send you to their own well-known website or app. Do not open the link; go to the official site yourself.',
   "account-security-lure":
@@ -1211,4 +1240,5 @@ export const CURSED_PHRASE_REASONS = Object.freeze({
   "payment-failed-lure": "This claims a payment failed and asks for your card details again. Use the official app instead.",
   "account-security-lure": "This is a sign-in alert that sends you to a fake page. Check your account in the official app.",
   "unfamiliar-link-pressure": "Pressure to act through a link to an unfamiliar website. Go to the official site yourself.",
+  "tech-support-scam": "A fake virus or security scare that tells you to call support or install a remote app.",
 });
