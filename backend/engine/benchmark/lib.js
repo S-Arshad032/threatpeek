@@ -7,10 +7,10 @@ import { dirname, join } from "node:path";
 import { score } from "../src/index.js";
 import { BENCHMARK_DETECTED_MIN_SCORE, BENCHMARK_STRONG_MIN_SCORE } from "../src/config.js";
 
-export const SETS = Object.freeze(["dev", "heldout", "heldout2", "heldout3", "heldout4"]);
+export const SETS = Object.freeze(["dev", "heldout", "heldout2", "heldout3", "heldout4", "heldout5"]);
 export const BENCHMARK_DIR = dirname(fileURLToPath(import.meta.url));
 
-/** The set file: a bare array of messages, or `{ note, messages }` (heldout3 and heldout4 carry a note). */
+/** The set file: a bare array of messages, or `{ note, messages }` (heldout3, heldout4 and heldout5 carry a note). */
 function readSetFile(name) {
   if (!SETS.includes(name)) throw new Error(`unknown set "${name}", expected one of: ${SETS.join(", ")}`);
   return JSON.parse(readFileSync(join(BENCHMARK_DIR, `${name}.json`), "utf8"));

@@ -64,19 +64,25 @@ describe("benchmark held-out sets are well formed", () => {
   });
 });
 
-describe("benchmark heldout3 and heldout4", () => {
+describe("benchmark heldout3, heldout4 and heldout5", () => {
   it("heldout3 is a known set whose note says it was used for round 2 tuning", () => {
     expect(SETS).toContain("heldout3");
     expect(loadSet("heldout3")).toHaveLength(30);
     expect(setNote("heldout3")).toMatch(/used for rule tuning in round 2/);
   });
-  it("heldout4 has 30 messages (15 scam, 15 benign) and a note marking it unseen", () => {
+  it("heldout4 has 30 messages (15 scam, 15 benign) and a note marking it seen after round 3", () => {
     expect(SETS).toContain("heldout4");
     const set = loadSet("heldout4");
     expect(set).toHaveLength(30);
     expect(set.filter((m) => m.label === "scam")).toHaveLength(15);
     expect(set.filter((m) => m.label === "benign")).toHaveLength(15);
-    expect(setNote("heldout4")).toMatch(/only fully unseen set/);
+    expect(setNote("heldout4")).toMatch(/seen after round 3 \(used for tuning\)/);
+    expect(setNote("heldout4")).toMatch(/first contact, before round 3: 13\.3% detection/);
+  });
+  it("heldout5 is reserved: a note and an empty messages array", () => {
+    expect(SETS).toContain("heldout5");
+    expect(loadSet("heldout5")).toEqual([]);
+    expect(setNote("heldout5")).toMatch(/nobody .* has seen/);
   });
   it("the older sets are still bare arrays", () => {
     for (const name of ["dev", "heldout", "heldout2"]) expect(setNote(name)).toBeNull();
