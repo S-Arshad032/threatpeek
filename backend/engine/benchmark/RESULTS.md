@@ -31,9 +31,14 @@ sentence from heldout4 is in a rule or a test. A later tech-support-scam signal 
 virus alert (dev-s19, 60). Its other 6 scams without a link (rental deposit, wrong-number investor,
 charity, marketplace QR, invoice bank change, visa bond) are still missed.
 
-heldout5 is reserved and empty, kept for 30 fresh messages that nobody has seen. It is the next fully
-unseen set; until it is filled there is no unseen measure of the round 3 rules. All sets are synthetic
-and English-only; the numbers are not a guarantee.
+**heldout5 is the only set fully unseen at the time of final tuning.** Its 30 messages (15 scam / 15
+benign) were written by a third party (Gemini) after round 3 and the tech-support-scam signal were
+finished, cover different scam types than all earlier sets, and were measured once (2026-11-27)
+without changing any rule. Links are written as normal links. Caveat: a third-party generator tends to
+write hyphenated lookalike domains, which unfamiliar-link-pressure targets, so this result may look
+better than it would for scams with simpler domains. Result: 40.0% detection (6/15, all at exactly 50),
+0.0% strong, 0.0% false alarms. All sets are synthetic and English-only; the numbers are not a
+guarantee.
 
 <!-- set:dev -->
 ## Set: dev
@@ -256,3 +261,54 @@ False alarms (0):
 
 - none
 <!-- /set:heldout4 -->
+
+<!-- set:heldout5 -->
+## Set: heldout5
+
+Run on 2026-11-27 with `score(text)` only (no AI, no Safe Browsing). 30 messages.
+
+| Metric | Value |
+|---|---|
+| Detection rate (scam scored >= 31) | 40.0% (6/15) |
+| Strong detection rate (scam scored >= 70) | 0.0% (0/15) |
+| False-alarm rate (benign scored >= 31) | 0.0% (0/15) |
+
+| Label | Pookie | Skeptical | Poltergeist | Total |
+|---|---|---|---|---|
+| scam | 9 | 6 | 0 | 15 |
+| benign | 15 | 0 | 0 | 15 |
+
+| Scam category | Detected | Strong | Total |
+|---|---|---|---|
+| admission-result | 0 | 0 | 1 |
+| corporate-password-phishing | 1 | 0 | 1 |
+| court-summons | 1 | 0 | 1 |
+| crypto-withdrawal-alert | 0 | 0 | 1 |
+| delivery-reschedule | 1 | 0 | 1 |
+| fake-check-job | 0 | 0 | 1 |
+| government-benefit | 0 | 0 | 1 |
+| insurance-refund | 1 | 0 | 1 |
+| pet-deposit | 0 | 0 | 1 |
+| shop-refund | 1 | 0 | 1 |
+| survey-reward | 0 | 0 | 1 |
+| telco-offer-phishing | 1 | 0 | 1 |
+| ticket-resale | 0 | 0 | 1 |
+| voicemail-phishing | 0 | 0 | 1 |
+| wrong-number-opener | 0 | 0 | 1 |
+
+Misses (9):
+
+- `h5-s01` (0, wrong-number-opener): Hi there! Is this Dr. Mehta's assistant? I saved this number under my contact list by mistake when I flew into New York yesterday, hope I d…
+- `h5-s04` (0, crypto-withdrawal-alert): [Kraken Security] Notice: An automated withdrawal request of 1.45 BTC was initiated from an unrecognized IP in Frankfurt. If this was not a…
+- `h5-s06` (0, ticket-resale): Hi, I saw your comment on the Coldplay concert page! I have 2 VIP floor tickets left for Saturday because my sister got sick. Selling at fa…
+- `h5-s08` (0, fake-check-job): Subject: Congratulations! Interview Invitation - Junior Operations Analyst. Hi, our hiring committee reviewed your profile and would like t…
+- `h5-s09` (0, voicemail-phishing): You have (1) new encrypted voicemail from +1-800-555-0194 (Duration: 0:48). Tap to listen via Visual Voicemail: http://vmail-inbox-player.n…
+- `h5-s12` (0, pet-deposit): Hi! Thank you so much for inquiring about Bella, our 10-week-old Golden Retriever puppy! She is AKC registered and vaccinated. Because thre…
+- `h5-s13` (25, government-benefit): Ministry of Health Benefit Alert: You are eligible to receive the 2026 Post-Pandemic Healthcare Relief Stipend of $650. Complete your benef…
+- `h5-s14` (20, admission-result): Subject: National University Admission & Merit Result Published. Dear Candidate, your provisional merit score has been updated. Confirm you…
+- `h5-s15` (0, survey-reward): Amazon Shopper Panel: You've been selected for a 60-second customer experience survey! Complete our short Google Form to instantly receive …
+
+False alarms (0):
+
+- none
+<!-- /set:heldout5 -->

@@ -79,10 +79,13 @@ describe("benchmark heldout3, heldout4 and heldout5", () => {
     expect(setNote("heldout4")).toMatch(/seen after round 3 \(used for tuning\)/);
     expect(setNote("heldout4")).toMatch(/first contact, before round 3: 13\.3% detection/);
   });
-  it("heldout5 is reserved: a note and an empty messages array", () => {
+  it("heldout5 has 30 messages (15 scam, 15 benign) and a note marking it not seen", () => {
     expect(SETS).toContain("heldout5");
-    expect(loadSet("heldout5")).toEqual([]);
-    expect(setNote("heldout5")).toMatch(/nobody .* has seen/);
+    const set = loadSet("heldout5");
+    expect(set).toHaveLength(30);
+    expect(set.filter((m) => m.label === "scam")).toHaveLength(15);
+    expect(set.filter((m) => m.label === "benign")).toHaveLength(15);
+    expect(setNote("heldout5")).toMatch(/NOT seen while any rule was written/);
   });
   it("the older sets are still bare arrays", () => {
     for (const name of ["dev", "heldout", "heldout2"]) expect(setNote(name)).toBeNull();

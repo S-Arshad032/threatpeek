@@ -312,6 +312,11 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - [x] 22.5 Benchmarks before/after on all five sets: only `dev-s19` (15 -> 60) and `h4-s08` (0 -> 60) changed; no false alarm added; heldout4 stays "seen after round 3"
   - _Requirements: 2.24, 2.38, 3.3, 4.28_
 
+- [x] 23. heldout5 measured (no rule change)
+  - [x] 23.1 heldout5 filled with 30 third-party messages written after round 3 and `tech-support-scam`; measured once: 40.0% detection (6/15, all at 50), 0% strong, 0% false alarms; dev, heldout, heldout2, heldout3 and heldout4 unchanged
+  - [x] 23.2 Reported in RESULTS.md, the READMEs and this spec as the only set fully unseen at the time of final tuning; the benchmark format check now expects 30 messages; heldout4 first-contact numbers kept
+  - _Requirements: 13.1_
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for a faster MVP (but all property tests are needed to satisfy Requirement 11)

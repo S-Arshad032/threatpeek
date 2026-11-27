@@ -1,6 +1,6 @@
 // `npm run benchmark [-- --set=dev|heldout|heldout2|heldout3|heldout4|heldout5]`: scores a benchmark set, prints a
 // report and updates that set's section of benchmark/RESULTS.md (the other sets' sections are kept).
-// An empty set (heldout5 today) prints its note and leaves RESULTS.md untouched.
+// An empty set prints its note and leaves RESULTS.md untouched.
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -42,9 +42,14 @@ const HEADER = [
   "virus alert (dev-s19, 60). Its other 6 scams without a link (rental deposit, wrong-number investor,",
   "charity, marketplace QR, invoice bank change, visa bond) are still missed.",
   "",
-  "heldout5 is reserved and empty, kept for 30 fresh messages that nobody has seen. It is the next fully",
-  "unseen set; until it is filled there is no unseen measure of the round 3 rules. All sets are synthetic",
-  "and English-only; the numbers are not a guarantee.",
+  "**heldout5 is the only set fully unseen at the time of final tuning.** Its 30 messages (15 scam / 15",
+  "benign) were written by a third party (Gemini) after round 3 and the tech-support-scam signal were",
+  "finished, cover different scam types than all earlier sets, and were measured once (2026-11-27)",
+  "without changing any rule. Links are written as normal links. Caveat: a third-party generator tends to",
+  "write hyphenated lookalike domains, which unfamiliar-link-pressure targets, so this result may look",
+  "better than it would for scams with simpler domains. Result: 40.0% detection (6/15, all at exactly 50),",
+  "0.0% strong, 0.0% false alarms. All sets are synthetic and English-only; the numbers are not a",
+  "guarantee.",
 ].join("\n");
 
 function parseSet(argv) {
