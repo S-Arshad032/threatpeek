@@ -294,6 +294,16 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - The six reference messages in `scam-families.test.js` are quoted as reported (they name real services such as MetaMask, BRTA and bit.ly); all other new fixtures use fictional names and reserved or throwaway domains
   - _Requirements: 2.9, 2.25-2.31, 3.3, 4.17-4.22, 13.1, 13.2_
 
+- [x] 21. Round 3: credential-request needs a request, unfamiliar-link-pressure
+  - [x] 21.1 Diagnose: heldout4 first contact 13.3% detection, 1 false alarm (a real "your password was changed" bank alert, where `credential-request` fired on the word "password"); 6 of the 8 linked misses had an unfamiliar hyphenated or risky-TLD link plus a deadline, threat, fee or verify ask
+  - [x] 21.2 `credential-request` needs a request verb before a bare credential word in the same sentence, "please" after it, or a login instruction; notices do not fire (Requirement 2.10)
+  - [x] 21.3 `unfamiliar-link-pressure` (Content, 25) via `isUnfamiliarDomain` in `util/lure.js`; lure words extended; `UNFAMILIAR_SAFE_DOMAINS` allowlist (Requirement 2.37)
+  - [x] 21.4 Floor 4.27 (50) in `blend.js`
+  - [x] 21.5 Tests: `round3.test.js` (every scam paraphrase defanged and with normal dots, notices, required negatives < 30), config counts (32 signals); three unit tests that encoded the old keyword behaviour updated
+  - [x] 21.6 Benchmarks before/after on all five sets: no normal message scored higher; heldout4 false alarm removed; one dev scam (fake virus alert, "passwords are at risk") dropped 55 -> 15
+  - [x] 21.7 heldout4 marked "seen after round 3 (used for tuning)" with its first-contact numbers kept; `benchmark/heldout5.json` reserved (`{ note, messages: [] }`), `--set=heldout5` prints the note while empty (Requirement 13.1)
+  - _Requirements: 2.10, 2.37, 3.3, 4.27, 13.1_
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for a faster MVP (but all property tests are needed to satisfy Requirement 11)
