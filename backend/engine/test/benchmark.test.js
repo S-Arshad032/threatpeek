@@ -70,10 +70,13 @@ describe("benchmark heldout3 and heldout4", () => {
     expect(loadSet("heldout3")).toHaveLength(30);
     expect(setNote("heldout3")).toMatch(/used for rule tuning in round 2/);
   });
-  it("heldout4 is reserved: a note and an empty messages array", () => {
+  it("heldout4 has 30 messages (15 scam, 15 benign) and a note marking it unseen", () => {
     expect(SETS).toContain("heldout4");
-    expect(loadSet("heldout4")).toEqual([]);
-    expect(setNote("heldout4")).toMatch(/nobody .* has seen/);
+    const set = loadSet("heldout4");
+    expect(set).toHaveLength(30);
+    expect(set.filter((m) => m.label === "scam")).toHaveLength(15);
+    expect(set.filter((m) => m.label === "benign")).toHaveLength(15);
+    expect(setNote("heldout4")).toMatch(/only fully unseen set/);
   });
   it("the older sets are still bare arrays", () => {
     for (const name of ["dev", "heldout", "heldout2"]) expect(setNote(name)).toBeNull();

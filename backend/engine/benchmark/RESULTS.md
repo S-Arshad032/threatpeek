@@ -17,13 +17,17 @@ by English versions, so the set does not measure mixed-language messages. h3-s06
 number got blocked... urgent 3,000 BDT bKash") and h3-b13 (benign: "my card got declined... send me
 600 BDT on bKash") are near-twins that a rule engine cannot reliably separate; h3-s06 is still missed.
 
-heldout4 is reserved and empty, kept for 30 fresh messages that nobody has seen. Until it is filled
-there is no unseen measure of the round 2 rules.
+**heldout4 is the only fully unseen set.** Its 30 messages (15 scam / 15 benign) were written by a
+third party (Gemini), cover different scam types than all earlier sets (KYC and SIM re-verification,
+scholarship, visa and loan fees, rental deposits, fake charity, marketplace QR codes, changed bank
+details on an invoice, page appeals, government grants, verification badges) and were not seen while
+the rules were written. It was added on 2026-11-27 and measured without changing any rule. English
+only, synthetic, not a guarantee. Do not tune rules on it.
 
 <!-- set:dev -->
 ## Set: dev
 
-Run on 2026-11-26 with `score(text)` only (no AI, no Safe Browsing). 70 messages.
+Run on 2026-11-27 with `score(text)` only (no AI, no Safe Browsing). 70 messages.
 
 | Metric | Value |
 |---|---|
@@ -66,7 +70,7 @@ False alarms (0):
 <!-- set:heldout -->
 ## Set: heldout
 
-Run on 2026-11-26 with `score(text)` only (no AI, no Safe Browsing). 40 messages.
+Run on 2026-11-27 with `score(text)` only (no AI, no Safe Browsing). 40 messages.
 
 | Metric | Value |
 |---|---|
@@ -113,7 +117,7 @@ False alarms (0):
 <!-- set:heldout2 -->
 ## Set: heldout2
 
-Run on 2026-11-26 with `score(text)` only (no AI, no Safe Browsing). 30 messages.
+Run on 2026-11-27 with `score(text)` only (no AI, no Safe Browsing). 30 messages.
 
 | Metric | Value |
 |---|---|
@@ -157,7 +161,7 @@ False alarms (1):
 <!-- set:heldout3 -->
 ## Set: heldout3
 
-Run on 2026-11-26 with `score(text)` only (no AI, no Safe Browsing). 30 messages.
+Run on 2026-11-27 with `score(text)` only (no AI, no Safe Browsing). 30 messages.
 
 | Metric | Value |
 |---|---|
@@ -194,3 +198,58 @@ False alarms (0):
 
 - none
 <!-- /set:heldout3 -->
+
+<!-- set:heldout4 -->
+## Set: heldout4
+
+Run on 2026-11-27 with `score(text)` only (no AI, no Safe Browsing). 30 messages.
+
+| Metric | Value |
+|---|---|
+| Detection rate (scam scored >= 31) | 13.3% (2/15) |
+| Strong detection rate (scam scored >= 70) | 0.0% (0/15) |
+| False-alarm rate (benign scored >= 31) | 6.7% (1/15) |
+
+| Label | Pookie | Skeptical | Poltergeist | Total |
+|---|---|---|---|---|
+| scam | 13 | 2 | 0 | 15 |
+| benign | 14 | 1 | 0 | 15 |
+
+| Scam category | Detected | Strong | Total |
+|---|---|---|---|
+| bank-kyc-phishing | 0 | 0 | 1 |
+| fake-charity | 0 | 0 | 1 |
+| government-grant | 0 | 0 | 1 |
+| invoice-bank-change | 0 | 0 | 1 |
+| loan-fee | 0 | 0 | 1 |
+| marketplace-qr | 0 | 0 | 1 |
+| page-appeal-phishing | 1 | 0 | 1 |
+| rental-deposit | 0 | 0 | 1 |
+| scholarship-fee | 1 | 0 | 1 |
+| sim-deactivation | 0 | 0 | 1 |
+| tech-support | 0 | 0 | 1 |
+| verification-badge | 0 | 0 | 1 |
+| visa-appointment-fee | 0 | 0 | 1 |
+| visa-fee | 0 | 0 | 1 |
+| wrong-number-investment | 0 | 0 | 1 |
+
+Misses (13):
+
+- `h4-s01` (25, bank-kyc-phishing): Urgent: Your Eastern Bank account will be restricted in 24 hours due to incomplete e-KYC verification. Update your NID details immediately …
+- `h4-s02` (10, sim-deactivation): BTRC Notice: Your current SIM card is unregistered under new biometric rules and will be permanently deactivated at 6:00 PM today. Re-verif…
+- `h4-s04` (20, visa-fee): Subject: Action Required — Visa Application #88412. Dear Applicant, your student visa approval is ready, but a mandatory $120 immigration c…
+- `h4-s05` (0, rental-deposit): Hi! Saw your post looking for a 2-bedroom flat in Banani. I'm currently working abroad in London and can hold the apartment for you if you …
+- `h4-s06` (0, wrong-number-investment): Hello! I know this is random, but I accidentally typed the wrong number and found your profile. You seem really kind—I'm an angel investor …
+- `h4-s07` (0, fake-charity): Emergency Flood Relief Fund: Thousands of families in Sylhet need clean water tonight. Donate 500 BDT directly to our verified relief agent…
+- `h4-s08` (20, tech-support): Microsoft Defender Alert: Trojan.Spyware detected on your Windows PC (Error #0x8007002). Your banking passwords are at risk. Call our certi…
+- `h4-s09` (0, marketplace-qr): Subject: Buyer Payment Ready on Bikroy. Good news! A buyer has already paid 18,500 BDT for your listed laptop. Scan the attached QR code wi…
+- `h4-s10` (0, invoice-bank-change): Subject: OVERDUE INVOICE #INV-9042 — Apex Office Supplies Ltd. Please find attached the updated remittance advice for last month's toner sh…
+- `h4-s12` (10, loan-fee): Instant Personal Loan Approved! You qualify for up to 300,000 BDT at 4% annual interest with zero collateral. Deposit a 2,500 BDT insurance…
+- `h4-s13` (25, government-grant): National Citizen Grant 2026: Under the new Digital Economy Stimulus, you are eligible to claim a 15,000 BDT government relief grant. Claim …
+- `h4-s14` (25, verification-badge): Instagram Verification Badge: Your creator account meets the criteria for a free Blue Tick! Complete your profile authentication within 6 h…
+- `h4-s15` (25, visa-appointment-fee): Subject: Final Notice — Schengen Work Permit Slot. Your embassy interview slot in Gulshan is reserved. To confirm attendance and generate y…
+
+False alarms (1):
+
+- `h4-b14` (55, security-alert): Standard Chartered Alert: Your account password was changed on 27-Nov-2026 at 14:10. If you did not make this change, please contact our 24…
+<!-- /set:heldout4 -->

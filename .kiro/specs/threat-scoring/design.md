@@ -78,7 +78,7 @@ backend/engine/
     heldout.json         (40 different messages, never tuned on)
     heldout2.json        (30 different messages, credential/OTP focus, never tuned on)
     heldout3.json        ({ note, messages }, 30 third-party messages; seen, used for rule tuning in round 2)
-    heldout4.json        ({ note, messages: [] }, reserved for 30 messages nobody has seen)
+    heldout4.json        ({ note, messages }, 30 third-party messages; the only fully unseen set)
     lib.js, run.js       (`npm run benchmark [-- --set=dev|heldout|heldout2|heldout3|heldout4]`)
     RESULTS.md           (generated)
 ```

@@ -100,7 +100,13 @@ heldout3 caught 60% of its scams. Its misses were a utility disconnection threat
 | heldout2 (15 + 15) | 53% (8/15) | 53% (8/15) | 7% (1/15) | 7% (1/15) | 7% (1/15) | 7% (1/15) |
 | heldout3 (15 + 15), **seen, used for rule tuning in round 2** | 60% (9/15) | 93% (14/15) | 13% (2/15) | 47% (7/15) | 0% (0/15) | 0% (0/15) |
 
-No normal message in any set changed score. **heldout3 is now seen, used for rule tuning in round 2**, so its "after" numbers are optimistic and are not a held-out result. A fourth set, [`heldout4.json`](backend/engine/benchmark/heldout4.json), is reserved and empty for 30 fresh messages that nobody has seen; until it is filled there is no unseen measure of the round 2 rules.
+No normal message in any set changed score. **heldout3 is now seen, used for rule tuning in round 2**, so its "after" numbers are optimistic and are not a held-out result. A fourth set, [`heldout4.json`](backend/engine/benchmark/heldout4.json), is the only fully unseen measure of the round 2 rules. It has 30 messages (15 scams, 15 normal) written by a third party (Gemini), with scam types none of the earlier sets had: bank e-KYC and SIM re-registration deadlines, scholarship, visa, loan and appointment fees, a rental deposit, a fake charity, a marketplace QR code, an invoice with changed bank details, a page appeal, a government grant and a verification badge. We ran it once and changed no rule:
+
+| Set | Scams flagged (31+) | Scored 50+ | High risk (70+) | Normal messages flagged |
+|---|---|---|---|---|
+| heldout4 (15 + 15), **only fully unseen set** | 13% (2/15) | 13% (2/15) | 0% (0/15) | 7% (1/15) |
+
+The rules catch only the scholarship fee and the page appeal, and they wrongly flag a real "your password was changed" bank alert. That is a much worse result than on the sets the rules were built from: the rules know the scam families they were written for, not scams in general. heldout4 is small, synthetic and English-only, so the numbers are not a guarantee. See the [engine README](backend/engine/README.md#benchmark) for every miss.
 
 All of these are small, synthetic, English-only test sets, written by the same author, with fictional brands. They are not a guarantee of how ThreatPeek does on real messages. Run `npm run benchmark -- --set=heldout` (or `--set=heldout2`, `--set=heldout3`, `--set=dev`, and `--set=heldout4` once it has messages) in `backend/engine` to reproduce; full results are in [RESULTS.md](backend/engine/benchmark/RESULTS.md).
 

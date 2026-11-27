@@ -1,6 +1,6 @@
 // `npm run benchmark [-- --set=dev|heldout|heldout2|heldout3|heldout4]`: scores a benchmark set, prints a
 // report and updates that set's section of benchmark/RESULTS.md (the other sets' sections are kept).
-// An empty set (heldout4 today) prints its note and leaves RESULTS.md untouched.
+// An empty set prints its note and leaves RESULTS.md untouched.
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -28,8 +28,12 @@ const HEADER = [
   "number got blocked... urgent 3,000 BDT bKash\") and h3-b13 (benign: \"my card got declined... send me",
   "600 BDT on bKash\") are near-twins that a rule engine cannot reliably separate; h3-s06 is still missed.",
   "",
-  "heldout4 is reserved and empty, kept for 30 fresh messages that nobody has seen. Until it is filled",
-  "there is no unseen measure of the round 2 rules.",
+  "**heldout4 is the only fully unseen set.** Its 30 messages (15 scam / 15 benign) were written by a",
+  "third party (Gemini), cover different scam types than all earlier sets (KYC and SIM re-verification,",
+  "scholarship, visa and loan fees, rental deposits, fake charity, marketplace QR codes, changed bank",
+  "details on an invoice, page appeals, government grants, verification badges) and were not seen while",
+  "the rules were written. It was added on 2026-11-27 and measured without changing any rule. English",
+  "only, synthetic, not a guarantee. Do not tune rules on it.",
 ].join("\n");
 
 function parseSet(argv) {

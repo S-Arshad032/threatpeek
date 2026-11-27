@@ -290,6 +290,7 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - [x] 20.6 Tests: `round2.test.js` (3 paraphrases per new rule, required negatives and near misses < 30), config counts (31 signals, 12 risky TLDs), `defang.test.js` updated for the new link signal
   - [x] 20.7 Benchmarks before/after on dev, heldout, heldout2 and heldout3: no benign score changed on any set; heldout3 marked "seen, used for rule tuning in round 2" in its note, RESULTS.md and the READMEs
   - [x] 20.8 `benchmark/heldout4.json` reserved (`{ note, messages: [] }`) for 30 fresh messages nobody has seen; `--set=heldout4` prints the note while empty (Requirement 13.1, 13.2)
+  - [x] 20.9 heldout4 filled with 30 third-party messages and measured once with no rule change: 13.3% detection (2/15), 0% strong, 6.7% false alarms (1/15); reported in RESULTS.md and the READMEs as the only fully unseen set
   - The six reference messages in `scam-families.test.js` are quoted as reported (they name real services such as MetaMask, BRTA and bit.ly); all other new fixtures use fictional names and reserved or throwaway domains
   - _Requirements: 2.9, 2.25-2.31, 3.3, 4.17-4.22, 13.1, 13.2_
 

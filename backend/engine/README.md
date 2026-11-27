@@ -60,7 +60,7 @@ npm run benchmark                     # dev set (70 messages, used to tune the r
 npm run benchmark -- --set=heldout    # held-out set (40 different messages, never tuned on)
 npm run benchmark -- --set=heldout2   # second held-out set (30 messages, credential/OTP focus, never tuned on)
 npm run benchmark -- --set=heldout3   # third set (30 messages, seen, used for rule tuning in round 2)
-npm run benchmark -- --set=heldout4   # reserved fourth held-out set (empty for now, see below)
+npm run benchmark -- --set=heldout4   # fourth set (30 messages, the only fully unseen set, see below)
 ```
 
 **heldout3** ([`benchmark/heldout3.json`](benchmark/heldout3.json), 30 messages: 15 scam, 15 benign) was written by a third party (Gemini) and was not seen while the round 1 rules were written. **It is now seen, used for rule tuning in round 2**, so it is no longer a held-out measure. Unlike the other sets it uses real Bangladeshi service names (bKash, Nagad, DESCO, RedX...) with defanged throwaway domains, and its file is `{ note, messages }`. Results with `score(text)` only, round 1 (measured once on 25 November 2026, before it was seen) and round 2 (26 November 2026, after tuning on its misses):
@@ -80,7 +80,16 @@ Known limitations:
 
 Like the other sets, heldout3 is small and synthetic; the numbers are not a guarantee.
 
-**heldout4** ([`benchmark/heldout4.json`](benchmark/heldout4.json)) is reserved and empty (`{ note, messages: [] }`), kept for 30 fresh messages (15 scam, 15 benign) that nobody has seen. `--set=heldout4` prints its note and leaves `RESULTS.md` untouched while it is empty. Do not invent messages for it.
+**heldout4** ([`benchmark/heldout4.json`](benchmark/heldout4.json), 30 messages: 15 scam, 15 benign) is **the only fully unseen set**. It was written by a third party (Gemini), covers different scam types than all earlier sets, and was not seen while any rule was written. It was added on 27 November 2026 and measured once, without changing any rule. Results with `score(text)` only:
+
+| heldout4 (unseen) | Result |
+|---|---|
+| Scams flagged (score 31 or more) | 13% (2/15) |
+| Scams scored 50 or more | 13% (2/15) |
+| Scams scored high risk (70 or more) | 0% (0/15) |
+| Normal messages wrongly flagged (31 or more) | 7% (1/15) |
+
+The rules only catch the two scams that look like the families they were built for: a scholarship "processing fee" (`h4-s03`, 55) and a Facebook page appeal that asks you to verify your identity (`h4-s11`, 55). The 13 misses are a bank e-KYC deadline (25), a SIM re-registration deadline (10), a visa "clearance bond" by wire transfer (20), a rental deposit from a landlord abroad (0), a wrong-number "angel investor" opener (0), a fake flood-relief donation (0), a fake Microsoft Defender alert asking you to call and install AnyDesk (20), a marketplace buyer's QR code (0), an invoice with changed bank details (0), a loan "insurance stamp fee" (10), a government grant on a `.info` link (25), an Instagram badge offer (25) and a VFS appointment fee (25). The false alarm is a real "your password was changed, call us if it wasn't you" bank alert (`h4-b14`, 55: `urgency-en`, `credential-request`). These numbers are the honest picture of how the rules do on scam types they were not written for. Like the other sets, heldout4 is small, synthetic and English-only; the numbers are not a guarantee.
 
 Each run scores every message with `score(text)` only (no AI, no Safe Browsing). It prints counts by label and verdict, detection rate (scam scored 31 or more), strong detection rate (70 or more), false-alarm rate (normal message scored 31 or more), detection per scam category, and every miss and false alarm. It also updates that set's section of [`benchmark/RESULTS.md`](benchmark/RESULTS.md). The sets are small, synthetic and English-only, and all were written by the same author, so the numbers are not a guarantee.
 
