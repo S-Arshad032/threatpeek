@@ -26,8 +26,10 @@ any rule was written, measured without changing a rule): 13.3% detection (2/15),
 honest unseen result. **heldout4 is now seen after round 3 (used for tuning)**: its misses and false
 alarm guided the credential-request fix (a request verb is needed, not a notice) and the
 unfamiliar-link-pressure signal, so its section below is optimistic and not a held-out measure. No
-sentence from heldout4 is in a rule or a test. Its 7 scams without a link (rental deposit, wrong-number
-investor, charity, fake antivirus call, marketplace QR, invoice bank change, visa bond) are still missed.
+sentence from heldout4 is in a rule or a test. A later tech-support-scam signal (a device scare plus
+"call support" or "install AnyDesk") also catches its fake antivirus call (h4-s08, 60) and the dev fake
+virus alert (dev-s19, 60). Its other 6 scams without a link (rental deposit, wrong-number investor,
+charity, marketplace QR, invoice bank change, visa bond) are still missed.
 
 heldout5 is reserved and empty, kept for 30 fresh messages that nobody has seen. It is the next fully
 unseen set; until it is filled there is no unseen measure of the round 3 rules. All sets are synthetic
@@ -40,13 +42,13 @@ Run on 2026-11-27 with `score(text)` only (no AI, no Safe Browsing). 70 messages
 
 | Metric | Value |
 |---|---|
-| Detection rate (scam scored >= 31) | 91.4% (32/35) |
+| Detection rate (scam scored >= 31) | 94.3% (33/35) |
 | Strong detection rate (scam scored >= 70) | 22.9% (8/35) |
 | False-alarm rate (benign scored >= 31) | 0.0% (0/35) |
 
 | Label | Pookie | Skeptical | Poltergeist | Total |
 |---|---|---|---|---|
-| scam | 3 | 24 | 8 | 35 |
+| scam | 2 | 25 | 8 | 35 |
 | benign | 35 | 0 | 0 | 35 |
 
 | Scam category | Detected | Strong | Total |
@@ -63,14 +65,13 @@ Run on 2026-11-27 with `score(text)` only (no AI, no Safe Browsing). 70 messages
 | phishing-account-suspended | 3 | 2 | 3 |
 | prize-lottery | 2 | 1 | 2 |
 | romance-money | 2 | 1 | 2 |
-| tech-support | 1 | 0 | 2 |
+| tech-support | 2 | 0 | 2 |
 | wrong-transfer | 2 | 0 | 2 |
 
-Misses (3):
+Misses (2):
 
 - `dev-s15` (25, job-offer): Hello! We found your resume online. Our company offers remote work, 1-2 hours a day, $300-$900 daily. No experience needed. Message our HR …
 - `dev-s18` (0, investment-crypto): Hi dear, my uncle works at a big exchange and shared a private signal. I made 38k last month. Let me teach you, just open an account on coi…
-- `dev-s19` (15, tech-support): WARNING: Your computer has been infected with 5 viruses! Your personal data and banking passwords are at risk. Call Nexamail Technical Supp…
 
 False alarms (0):
 
@@ -215,13 +216,13 @@ Run on 2026-11-27 with `score(text)` only (no AI, no Safe Browsing). 30 messages
 
 | Metric | Value |
 |---|---|
-| Detection rate (scam scored >= 31) | 53.3% (8/15) |
+| Detection rate (scam scored >= 31) | 60.0% (9/15) |
 | Strong detection rate (scam scored >= 70) | 20.0% (3/15) |
 | False-alarm rate (benign scored >= 31) | 0.0% (0/15) |
 
 | Label | Pookie | Skeptical | Poltergeist | Total |
 |---|---|---|---|---|
-| scam | 7 | 5 | 3 | 15 |
+| scam | 6 | 6 | 3 | 15 |
 | benign | 15 | 0 | 0 | 15 |
 
 | Scam category | Detected | Strong | Total |
@@ -236,19 +237,18 @@ Run on 2026-11-27 with `score(text)` only (no AI, no Safe Browsing). 30 messages
 | rental-deposit | 0 | 0 | 1 |
 | scholarship-fee | 1 | 0 | 1 |
 | sim-deactivation | 1 | 0 | 1 |
-| tech-support | 0 | 0 | 1 |
+| tech-support | 1 | 0 | 1 |
 | verification-badge | 1 | 1 | 1 |
 | visa-appointment-fee | 1 | 1 | 1 |
 | visa-fee | 0 | 0 | 1 |
 | wrong-number-investment | 0 | 0 | 1 |
 
-Misses (7):
+Misses (6):
 
 - `h4-s04` (20, visa-fee): Subject: Action Required — Visa Application #88412. Dear Applicant, your student visa approval is ready, but a mandatory $120 immigration c…
 - `h4-s05` (0, rental-deposit): Hi! Saw your post looking for a 2-bedroom flat in Banani. I'm currently working abroad in London and can hold the apartment for you if you …
 - `h4-s06` (0, wrong-number-investment): Hello! I know this is random, but I accidentally typed the wrong number and found your profile. You seem really kind—I'm an angel investor …
 - `h4-s07` (0, fake-charity): Emergency Flood Relief Fund: Thousands of families in Sylhet need clean water tonight. Donate 500 BDT directly to our verified relief agent…
-- `h4-s08` (0, tech-support): Microsoft Defender Alert: Trojan.Spyware detected on your Windows PC (Error #0x8007002). Your banking passwords are at risk. Call our certi…
 - `h4-s09` (0, marketplace-qr): Subject: Buyer Payment Ready on Bikroy. Good news! A buyer has already paid 18,500 BDT for your listed laptop. Scan the attached QR code wi…
 - `h4-s10` (0, invoice-bank-change): Subject: OVERDUE INVOICE #INV-9042 — Apex Office Supplies Ltd. Please find attached the updated remittance advice for last month's toner sh…
 

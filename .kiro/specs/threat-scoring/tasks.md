@@ -304,6 +304,14 @@ Each task creates or modifies exactly one source file or one test file. No task 
   - [x] 21.7 heldout4 marked "seen after round 3 (used for tuning)" with its first-contact numbers kept; `benchmark/heldout5.json` reserved (`{ note, messages: [] }`), `--set=heldout5` prints the note while empty (Requirement 13.1)
   - _Requirements: 2.10, 2.37, 3.3, 4.27, 13.1_
 
+- [x] 22. Tech-support scams
+  - [x] 22.1 Diagnose: `dev-s19` ("5 viruses... passwords are at risk... call support") dropped to 15 when `credential-request` stopped firing on notices; `h4-s08` ("Trojan.Spyware detected... call our certified support desk and install AnyDesk") scored 0; `remote-access-request` needed the word "remote" plus a tool word, so a named tool such as AnyDesk never fired it
+  - [x] 22.2 `tech-support-scam` (Content, 30): a device/account scare AND call-support or install/open a remote tool (Requirement 2.38); floor 4.28 (60)
+  - [x] 22.3 `remote-access-request` also fires on install/open/download/allow + a named remote-control tool (Requirement 2.24)
+  - [x] 22.4 Tests: `tech-support.test.js` (4 fictional paraphrases >= 60, legitimate notices < 30, dev-s19 and h4-s08 >= 50); config count 33
+  - [x] 22.5 Benchmarks before/after on all five sets: only `dev-s19` (15 -> 60) and `h4-s08` (0 -> 60) changed; no false alarm added; heldout4 stays "seen after round 3"
+  - _Requirements: 2.24, 2.38, 3.3, 4.28_
+
 ## Notes
 
 - Tasks marked with `*` are optional and can be skipped for a faster MVP (but all property tests are needed to satisfy Requirement 11)
