@@ -197,7 +197,7 @@ describe("benign messages stay low", () => {
 
 describe("detectContent: cursed phrases", () => {
   it("de-duplicates by lowercase text and caps the list", () => {
-    const { cursedPhrases } = detectContent("password PASSWORD Password");
+    const { cursedPhrases } = detectContent("enter password PASSWORD Password");
     expect(cursedPhrases).toHaveLength(1);
     const many = Array.from({ length: 30 }, (_, i) => `act${"  ".repeat(i % 5)} now${" ".repeat(i)}`).join(". ");
     expect(detectContent(many).cursedPhrases.length).toBeLessThanOrEqual(MAX_CURSED_PHRASES);

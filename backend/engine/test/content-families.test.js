@@ -183,7 +183,8 @@ describe("direct password and OTP requests", () => {
   it("(a) needs a hand-over context: no recipient, a new clause, or a sentence end in between", () => {
     expect(ids("Send the OTP")).toEqual(["credential-request"]);
     expect(ids("Tell us if you did not get your OTP")).toEqual(["credential-request"]);
-    expect(ids("Send us a note. Your OTP arrives soon")).toEqual(["credential-request"]);
+    // Round 3: the request verb is in another sentence, so "Your OTP arrives soon" is only a notice.
+    expect(ids("Send us a note. Your OTP arrives soon")).toEqual([]);
     expect(ids("Send us the pin for the map")).toEqual([]);
     expect(ids("please pin this post and send us a photo")).toEqual([]);
   });
@@ -196,7 +197,7 @@ describe("direct password and OTP requests", () => {
   });
   it("(b) not an instruction, or not the secret itself: no floor", () => {
     expect(score("If you share your password, change it").riskScore).toBe(20);
-    expect(score("We sent your password reset link").riskScore).toBe(20);
+    expect(score("We sent your password reset link").riskScore).toBe(0); // round 3: a notice, no request verb
     expect(score("Forgot it? Send a new password from the sign-in page.").riskScore).toBe(20);
     expect(score("Share your password manager tips with the team").riskScore).toBe(20);
     expect(score("Tell us if you forgot your password").riskScore).toBe(20);

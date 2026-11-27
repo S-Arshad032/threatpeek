@@ -645,6 +645,69 @@ export const DELIVERED_CODE_TERMS = Object.freeze([...SECRET_CODE_TERMS, "pin", 
 export const DELIVERED_CODE_DIGITS_MIN = 4;
 export const DELIVERED_CODE_DIGITS_MAX = 10;
 
+// credential-request (round 3): a bare credential word (password, PIN, OTP, username, one-time
+// code) only counts when a request verb addressed to the reader comes before it in the same
+// sentence, within CREDENTIAL_REQUEST_PROXIMITY_CHARS: "Send us your password", "read out the PIN".
+// A notice ("Your password was changed", "a new OTP was sent", "your passwords are at risk") has
+// no such verb and does not fire.
+export const CREDENTIAL_REQUEST_PROXIMITY_CHARS = 80;
+export const CREDENTIAL_REQUEST_VERBS = Object.freeze([
+  "enter",
+  "re-enter",
+  "provide",
+  "send",
+  "share",
+  "confirm",
+  "verify",
+  "update",
+  "submit",
+  "type",
+  "input",
+  "key in",
+  "fill in",
+  "give",
+  "tell",
+  "reply",
+  "read out",
+  "read back",
+  "read me",
+  "text",
+  "email",
+  "forward",
+  "disclose",
+  "validate",
+]);
+// "log in" / "sign in" is an instruction ("Log in here to keep your account"), except when it is a
+// noun: after one of these words ("a login from a new device", "unusual sign in") or before one
+// of the words after it ("login attempt", "sign in activity").
+export const LOGIN_NOUN_BEFORE = Object.freeze([
+  "a",
+  "an",
+  "the",
+  "new",
+  "unusual",
+  "recent",
+  "suspicious",
+  "successful",
+  "failed",
+  "unrecognized",
+  "unknown",
+  "last",
+]);
+export const LOGIN_NOUN_AFTER = Object.freeze([
+  "activity",
+  "attempt",
+  "attempts",
+  "alert",
+  "alerts",
+  "from",
+  "detected",
+  "notification",
+  "notifications",
+  "was",
+  "history",
+]);
+
 // Floor 4.16 (context.secretRequest): an instruction to the reader to hand over a secret.
 // Instruction = the verb opens a sentence or clause (after optional "please", "kindly"...), or
 // follows "you must / you need to / we need you to".

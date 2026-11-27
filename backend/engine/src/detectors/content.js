@@ -111,6 +111,10 @@ import {
   DELIVERED_CODE_TERMS,
   DELIVERED_CODE_DIGITS_MIN,
   DELIVERED_CODE_DIGITS_MAX,
+  CREDENTIAL_REQUEST_VERBS,
+  CREDENTIAL_REQUEST_PROXIMITY_CHARS,
+  LOGIN_NOUN_BEFORE,
+  LOGIN_NOUN_AFTER,
   SECRET_REQUEST_VERBS,
   SECRET_REQUEST_TERMS,
   PASSWORD_NOT_SECRET_AFTER,
@@ -311,11 +315,52 @@ const URGENCY_IMMEDIACY_RE = re(
 // ---------------------------------------------------------------------------
 // credential-request
 // ---------------------------------------------------------------------------
-// The lookarounds skip words that are part of a hostname, e.g. "login" in "login.galactibank.example".
-const CREDENTIAL_EN_RE =
-  /(?<![.-])\b(?:passwords?|passcode|log\s*in|sign\s+in|username|one[- ]time\s+(?:code|password)|verify\s+your\s+(?:account|identity)|confirm\s+your\s+identity)\b(?![.-][a-z0-9])/gi;
-// Case-sensitive so the ordinary word "pin" never fires. Runs on the case-preserving text.
+// Three kinds of match. The lookarounds skip words that are part of a hostname, e.g. "login" in
+// "login.galactibank.example".
+// 1. An instruction that is a request on its own: "verify your account", "confirm your identity",
+// "re-validate your mailbox".
+const CREDENTIAL_ACTION_RE =
+  /\b(?:(?:re-?)?(?:verify|validate)\s+your\s+(?:account|identity|mailbox|login)|confirm\s+your\s+(?:identity|login))\b/gi;
+// 2. "log in" / "sign in" used as an instruction, not as a noun ("a login from a new device").
+const CREDENTIAL_LOGIN_RE = re(
+  `(?<!\\b${anyOf(LOGIN_NOUN_BEFORE)}\\s+)(?<![.-])\\b(?:log\\s*in|sign\\s+in)\\b(?![.-][a-z0-9])` +
+    `(?!\\s+${anyOf(LOGIN_NOUN_AFTER)}\\b)`,
+);
+// 3. A bare credential word. Only a request when CREDENTIAL_REQUEST_VERB_RE comes before it in the
+// same sentence (see credentialRequests). PIN/OTP are case-sensitive so the word "pin" never fires.
+const CREDENTIAL_NOUN_RE = /(?<![.-])\b(?:passwords?|passcode|username|one[- ]time\s+(?:code|password))\b(?![.-][a-z0-9])/gi;
 const CREDENTIAL_UPPER_RE = /\b(?:PIN|OTP)\b/g;
+const CREDENTIAL_REQUEST_VERB_RE = new RegExp(words(CREDENTIAL_REQUEST_VERBS), "i");
+// "Your PIN please": the credential word directly followed by please.
+const CREDENTIAL_PLEASE_RE = /^,?\s*(?:please|pls|plz)\b/i;
+const CREDENTIAL_PLEASE_LOOKAHEAD = 10;
+
+/** The same-sentence text up to CREDENTIAL_REQUEST_PROXIMITY_CHARS before position `end`. */
+function sentenceBefore(text, end) {
+  let start = Math.max(0, end - CREDENTIAL_REQUEST_PROXIMITY_CHARS);
+  for (let i = end - 1; i >= start; i--) {
+    const c = text[i];
+    // "!", "?", a newline, or a "." that ends a sentence (followed by a space), not one in
+    // "4.99" or "secure.example".
+    if (c === "!" || c === "?" || c === "\n" || (c === "." && /\s/.test(text[i + 1] ?? " "))) {
+      start = i + 1;
+      break;
+    }
+  }
+  return text.slice(start, end);
+}
+
+/** credential-request matches: actions, login instructions, and requested credential words. */
+function credentialRequests(norm) {
+  const nouns = matchesInOrder(norm, [CREDENTIAL_NOUN_RE, CREDENTIAL_UPPER_RE]).filter(
+    (m) =>
+      CREDENTIAL_REQUEST_VERB_RE.test(sentenceBefore(norm.text, m.nStart)) ||
+      CREDENTIAL_PLEASE_RE.test(norm.text.slice(m.nEnd, m.nEnd + CREDENTIAL_PLEASE_LOOKAHEAD)),
+  );
+  return [...matchesInOrder(norm, [CREDENTIAL_ACTION_RE, CREDENTIAL_LOGIN_RE]), ...nouns].sort(
+    (a, b) => a.index - b.index,
+  );
+}
 // A warning such as "Do not share your PIN" or "We will never ask you to share your card number,
 // PIN or password": a negation that directly governs a request verb, plus the rest of that clause
 // (bounded, same sentence). Credential words inside it are not requests.
@@ -877,7 +922,7 @@ export function detectContent(input, brands = DEFAULT_BRANDS) {
   const credential = signalFrom(
     "credential-request",
     W_CREDENTIAL_REQUEST,
-    outside(matchesInOrder(norm, [CREDENTIAL_EN_RE, CREDENTIAL_UPPER_RE]), notRequests),
+    outside(credentialRequests(norm), notRequests),
   );
   const prize = phraseSignal(norm, "prize-lottery", W_PRIZE_LOTTERY, [PRIZE_RE, CONGRATS_RE, MONEY_RE, PERCENT_RETURN_RE]);
   const jobFee = jobFeeMatches(norm);
