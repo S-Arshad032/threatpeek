@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Run engine tests on save",
+      "description": "When a source file of the scoring engine is saved, run the engine test suite and report the result in one or two lines.",
+      "trigger": "PostFileSave",
+      "matcher": "backend/engine/src/.*[^/]*\\.js$",
+      "action": {
+        "type": "agent",
+        "prompt": "A file under backend/engine/src was just saved. Run the engine tests with: cd backend/engine && npm test. Tell me in one or two lines whether they pass, and name the failing test if any. Do not edit any rule, weight, floor, threshold or test; only report."
+      },
+      "enabled": true
+    }
+  ]
+}

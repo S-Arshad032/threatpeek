@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Report benchmark on dataset change",
+      "description": "When a benchmark dataset JSON file changes, run the benchmark and report detection and false-alarm rates without touching any rule.",
+      "trigger": "PostFileSave",
+      "matcher": "(backend/engine/benchmark/dev\\.json$|backend/engine/benchmark/heldout\\.json$|backend/engine/benchmark/heldout2\\.json$|backend/engine/benchmark/heldout3\\.json$|backend/engine/benchmark/heldout4\\.json$|backend/engine/benchmark/heldout5\\.json$)",
+      "action": {
+        "type": "agent",
+        "prompt": "A benchmark dataset file in backend/engine/benchmark was just changed. Run the benchmark for the changed set (cd backend/engine && npm run benchmark -- --set=<name of the changed file without .json>; for dev.json use --set=dev). Show me the detection rate (flagged, 50+, 70+) and the false-alarm rate as measured. Never edit any rule, weight, floor or threshold, and never edit the dataset; only report, and remind me if the set was already marked as seen in RESULTS.md."
+      },
+      "enabled": true
+    }
+  ]
+}
